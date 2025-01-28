@@ -21,6 +21,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.Credentials;
@@ -29,6 +32,7 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.Sniffer;
@@ -41,6 +45,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandi
 import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchConnectionDetails.Node;
 import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchConnectionDetails.Node.Protocol;
 import org.springframework.boot.context.properties.PropertyMapper;
+import org.springframework.boot.ssl.SslBundle;
+import org.springframework.boot.ssl.SslBundles;
+import org.springframework.boot.ssl.SslOptions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
@@ -62,41 +69,54 @@ class ElasticsearchRestClientConfigurations {
 
 		private final ElasticsearchProperties properties;
 
-		private final ElasticsearchConnectionDetails connectionDetails;
-
-		RestClientBuilderConfiguration(ElasticsearchProperties properties,
-				ObjectProvider<ElasticsearchConnectionDetails> connectionDetails) {
+		RestClientBuilderConfiguration(ElasticsearchProperties properties) {
 			this.properties = properties;
-			this.connectionDetails = connectionDetails
-				.getIfAvailable(() -> new PropertiesElasticsearchConnectionDetails(properties));
 		}
 
 		@Bean
-		RestClientBuilderCustomizer defaultRestClientBuilderCustomizer() {
-			return new DefaultRestClientBuilderCustomizer(this.properties, this.connectionDetails);
+		@ConditionalOnMissingBean(ElasticsearchConnectionDetails.class)
+		PropertiesElasticsearchConnectionDetails elasticsearchConnectionDetails() {
+			return new PropertiesElasticsearchConnectionDetails(this.properties);
 		}
 
 		@Bean
-		RestClientBuilder elasticsearchRestClientBuilder(
-				ObjectProvider<RestClientBuilderCustomizer> builderCustomizers) {
-			RestClientBuilder builder = RestClient.builder(this.connectionDetails.getNodes()
+		RestClientBuilderCustomizer defaultRestClientBuilderCustomizer(
+				ElasticsearchConnectionDetails connectionDetails) {
+			return new DefaultRestClientBuilderCustomizer(this.properties, connectionDetails);
+		}
+
+		@Bean
+		RestClientBuilder elasticsearchRestClientBuilder(ElasticsearchConnectionDetails connectionDetails,
+				ObjectProvider<RestClientBuilderCustomizer> builderCustomizers, ObjectProvider<SslBundles> sslBundles) {
+			RestClientBuilder builder = RestClient.builder(connectionDetails.getNodes()
 				.stream()
 				.map((node) -> new HttpHost(node.hostname(), node.port(), node.protocol().getScheme()))
 				.toArray(HttpHost[]::new));
 			builder.setHttpClientConfigCallback((httpClientBuilder) -> {
 				builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(httpClientBuilder));
+				String sslBundleName = this.properties.getRestclient().getSsl().getBundle();
+				if (StringUtils.hasText(sslBundleName)) {
+					configureSsl(httpClientBuilder, sslBundles.getObject().getBundle(sslBundleName));
+				}
 				return httpClientBuilder;
 			});
 			builder.setRequestConfigCallback((requestConfigBuilder) -> {
 				builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(requestConfigBuilder));
 				return requestConfigBuilder;
 			});
-			String pathPrefix = this.connectionDetails.getPathPrefix();
+			String pathPrefix = connectionDetails.getPathPrefix();
 			if (pathPrefix != null) {
 				builder.setPathPrefix(pathPrefix);
 			}
 			builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
 			return builder;
+		}
+
+		private void configureSsl(HttpAsyncClientBuilder httpClientBuilder, SslBundle sslBundle) {
+			SSLContext sslcontext = sslBundle.createSslContext();
+			SslOptions sslOptions = sslBundle.getOptions();
+			httpClientBuilder.setSSLStrategy(new SSLIOSessionStrategy(sslcontext, sslOptions.getEnabledProtocols(),
+					sslOptions.getCiphers(), (HostnameVerifier) null));
 		}
 
 	}
@@ -212,7 +232,7 @@ class ElasticsearchRestClientConfigurations {
 	/**
 	 * Adapts {@link ElasticsearchProperties} to {@link ElasticsearchConnectionDetails}.
 	 */
-	private static class PropertiesElasticsearchConnectionDetails implements ElasticsearchConnectionDetails {
+	static class PropertiesElasticsearchConnectionDetails implements ElasticsearchConnectionDetails {
 
 		private final ElasticsearchProperties properties;
 

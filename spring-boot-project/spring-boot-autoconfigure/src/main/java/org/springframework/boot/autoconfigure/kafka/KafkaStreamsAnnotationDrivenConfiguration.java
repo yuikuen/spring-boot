@@ -16,7 +16,6 @@
 
 package org.springframework.boot.autoconfigure.kafka;
 
-import java.util.List;
 import java.util.Map;
 
 import org.apache.kafka.clients.CommonClientConfigs;
@@ -30,8 +29,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.kafka.KafkaConnectionDetails.Node;
 import org.springframework.boot.context.properties.source.InvalidConfigurationPropertyValueException;
+import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -48,6 +47,7 @@ import org.springframework.kafka.core.CleanupConfig;
  * @author Eddú Meléndez
  * @author Moritz Halbritter
  * @author Andy Wilkinson
+ * @author Scott Frederick
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(StreamsBuilder.class)
@@ -63,11 +63,9 @@ class KafkaStreamsAnnotationDrivenConfiguration {
 	@ConditionalOnMissingBean
 	@Bean(KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME)
 	KafkaStreamsConfiguration defaultKafkaStreamsConfig(Environment environment,
-			ObjectProvider<KafkaConnectionDetails> connectionDetailsProvider) {
-		KafkaConnectionDetails connectionDetails = connectionDetailsProvider
-			.getIfAvailable(() -> new PropertiesKafkaConnectionDetails(this.properties));
-		Map<String, Object> properties = this.properties.buildStreamsProperties();
-		applyKafkaConnectionDetailsForStreams(connectionDetails, properties);
+			KafkaConnectionDetails connectionDetails, ObjectProvider<SslBundles> sslBundles) {
+		Map<String, Object> properties = this.properties.buildStreamsProperties(sslBundles.getIfAvailable());
+		applyKafkaConnectionDetailsForStreams(properties, connectionDetails);
 		if (this.properties.getStreams().getApplicationId() == null) {
 			String applicationName = environment.getProperty("spring.application.name");
 			if (applicationName == null) {
@@ -87,17 +85,12 @@ class KafkaStreamsAnnotationDrivenConfiguration {
 		return new KafkaStreamsFactoryBeanConfigurer(this.properties, factoryBean);
 	}
 
-	private void applyKafkaConnectionDetailsForStreams(KafkaConnectionDetails connectionDetails,
-			Map<String, Object> properties) {
-		properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-				nodesToStringList(connectionDetails.getStreamsBootstrapNodes()));
+	private void applyKafkaConnectionDetailsForStreams(Map<String, Object> properties,
+			KafkaConnectionDetails connectionDetails) {
+		properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, connectionDetails.getStreamsBootstrapServers());
 		if (!(connectionDetails instanceof PropertiesKafkaConnectionDetails)) {
 			properties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "PLAINTEXT");
 		}
-	}
-
-	private List<String> nodesToStringList(List<Node> nodes) {
-		return nodes.stream().map((node) -> node.host() + ":" + node.port()).toList();
 	}
 
 	// Separate class required to avoid BeanCurrentlyInCreationException

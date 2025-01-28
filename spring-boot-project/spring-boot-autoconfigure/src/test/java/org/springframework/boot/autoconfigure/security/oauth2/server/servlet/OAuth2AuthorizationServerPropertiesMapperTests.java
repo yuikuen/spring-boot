@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ class OAuth2AuthorizationServerPropertiesMapperTests {
 		assertThat(registeredClient.getTokenSettings().getAccessTokenFormat()).isEqualTo(OAuth2TokenFormat.REFERENCE);
 		assertThat(registeredClient.getTokenSettings().getAccessTokenTimeToLive()).isEqualTo(Duration.ofSeconds(300));
 		assertThat(registeredClient.getTokenSettings().getRefreshTokenTimeToLive()).isEqualTo(Duration.ofHours(24));
+		assertThat(registeredClient.getTokenSettings().getDeviceCodeTimeToLive()).isEqualTo(Duration.ofMinutes(30));
 		assertThat(registeredClient.getTokenSettings().isReuseRefreshTokens()).isEqualTo(true);
 		assertThat(registeredClient.getTokenSettings().getIdTokenSignatureAlgorithm())
 			.isEqualTo(SignatureAlgorithm.RS512);
@@ -89,6 +90,7 @@ class OAuth2AuthorizationServerPropertiesMapperTests {
 		token.setAccessTokenFormat("reference");
 		token.setAccessTokenTimeToLive(Duration.ofSeconds(300));
 		token.setRefreshTokenTimeToLive(Duration.ofHours(24));
+		token.setDeviceCodeTimeToLive(Duration.ofMinutes(30));
 		token.setReuseRefreshTokens(true);
 		token.setIdTokenSignatureAlgorithm("rs512");
 		return client;
@@ -99,6 +101,8 @@ class OAuth2AuthorizationServerPropertiesMapperTests {
 		this.properties.setIssuer("https://example.com");
 		OAuth2AuthorizationServerProperties.Endpoint endpoints = this.properties.getEndpoint();
 		endpoints.setAuthorizationUri("/authorize");
+		endpoints.setDeviceAuthorizationUri("/device_authorization");
+		endpoints.setDeviceVerificationUri("/device_verification");
 		endpoints.setTokenUri("/token");
 		endpoints.setJwkSetUri("/jwks");
 		endpoints.setTokenRevocationUri("/revoke");
@@ -109,7 +113,40 @@ class OAuth2AuthorizationServerPropertiesMapperTests {
 		oidc.setUserInfoUri("/user");
 		AuthorizationServerSettings settings = this.mapper.asAuthorizationServerSettings();
 		assertThat(settings.getIssuer()).isEqualTo("https://example.com");
+		assertThat(settings.isMultipleIssuersAllowed()).isFalse();
 		assertThat(settings.getAuthorizationEndpoint()).isEqualTo("/authorize");
+		assertThat(settings.getDeviceAuthorizationEndpoint()).isEqualTo("/device_authorization");
+		assertThat(settings.getDeviceVerificationEndpoint()).isEqualTo("/device_verification");
+		assertThat(settings.getTokenEndpoint()).isEqualTo("/token");
+		assertThat(settings.getJwkSetEndpoint()).isEqualTo("/jwks");
+		assertThat(settings.getTokenRevocationEndpoint()).isEqualTo("/revoke");
+		assertThat(settings.getTokenIntrospectionEndpoint()).isEqualTo("/introspect");
+		assertThat(settings.getOidcLogoutEndpoint()).isEqualTo("/logout");
+		assertThat(settings.getOidcClientRegistrationEndpoint()).isEqualTo("/register");
+		assertThat(settings.getOidcUserInfoEndpoint()).isEqualTo("/user");
+	}
+
+	@Test
+	void getAuthorizationServerSettingsWhenMultipleIssuersAllowedShouldAdapt() {
+		this.properties.setMultipleIssuersAllowed(true);
+		OAuth2AuthorizationServerProperties.Endpoint endpoints = this.properties.getEndpoint();
+		endpoints.setAuthorizationUri("/authorize");
+		endpoints.setDeviceAuthorizationUri("/device_authorization");
+		endpoints.setDeviceVerificationUri("/device_verification");
+		endpoints.setTokenUri("/token");
+		endpoints.setJwkSetUri("/jwks");
+		endpoints.setTokenRevocationUri("/revoke");
+		endpoints.setTokenIntrospectionUri("/introspect");
+		OAuth2AuthorizationServerProperties.OidcEndpoint oidc = endpoints.getOidc();
+		oidc.setLogoutUri("/logout");
+		oidc.setClientRegistrationUri("/register");
+		oidc.setUserInfoUri("/user");
+		AuthorizationServerSettings settings = this.mapper.asAuthorizationServerSettings();
+		assertThat(settings.getIssuer()).isNull();
+		assertThat(settings.isMultipleIssuersAllowed()).isTrue();
+		assertThat(settings.getAuthorizationEndpoint()).isEqualTo("/authorize");
+		assertThat(settings.getDeviceAuthorizationEndpoint()).isEqualTo("/device_authorization");
+		assertThat(settings.getDeviceVerificationEndpoint()).isEqualTo("/device_verification");
 		assertThat(settings.getTokenEndpoint()).isEqualTo("/token");
 		assertThat(settings.getJwkSetEndpoint()).isEqualTo("/jwks");
 		assertThat(settings.getTokenRevocationEndpoint()).isEqualTo("/revoke");

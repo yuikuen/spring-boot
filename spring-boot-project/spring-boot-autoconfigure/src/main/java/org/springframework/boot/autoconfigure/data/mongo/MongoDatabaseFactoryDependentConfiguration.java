@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,12 @@ import com.mongodb.ClientSessionOptions;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoDatabase;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.mongo.MongoConnectionDetails;
 import org.springframework.boot.autoconfigure.mongo.MongoConnectionDetails.GridFs;
 import org.springframework.boot.autoconfigure.mongo.MongoProperties;
 import org.springframework.boot.autoconfigure.mongo.MongoProperties.Gridfs;
-import org.springframework.boot.autoconfigure.mongo.PropertiesMongoConnectionDetails;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.dao.DataAccessException;
@@ -35,12 +33,7 @@ import org.springframework.dao.support.PersistenceExceptionTranslator;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.convert.DbRefResolver;
-import org.springframework.data.mongodb.core.convert.DefaultDbRefResolver;
-import org.springframework.data.mongodb.core.convert.MappingMongoConverter;
 import org.springframework.data.mongodb.core.convert.MongoConverter;
-import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
-import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
 import org.springframework.data.mongodb.gridfs.GridFsOperations;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.util.Assert;
@@ -64,21 +57,9 @@ class MongoDatabaseFactoryDependentConfiguration {
 	}
 
 	@Bean
-	@ConditionalOnMissingBean(MongoConverter.class)
-	MappingMongoConverter mappingMongoConverter(MongoDatabaseFactory factory, MongoMappingContext context,
-			MongoCustomConversions conversions) {
-		DbRefResolver dbRefResolver = new DefaultDbRefResolver(factory);
-		MappingMongoConverter mappingConverter = new MappingMongoConverter(dbRefResolver, context);
-		mappingConverter.setCustomConversions(conversions);
-		return mappingConverter;
-	}
-
-	@Bean
 	@ConditionalOnMissingBean(GridFsOperations.class)
 	GridFsTemplate gridFsTemplate(MongoProperties properties, MongoDatabaseFactory factory, MongoTemplate mongoTemplate,
-			ObjectProvider<MongoConnectionDetails> connectionDetailsProvider) {
-		MongoConnectionDetails connectionDetails = connectionDetailsProvider
-			.getIfAvailable(() -> new PropertiesMongoConnectionDetails(properties));
+			MongoConnectionDetails connectionDetails) {
 		return new GridFsTemplate(new GridFsMongoDatabaseFactory(factory, connectionDetails),
 				mongoTemplate.getConverter(),
 				(connectionDetails.getGridFs() != null) ? connectionDetails.getGridFs().getBucket() : null);
@@ -96,8 +77,8 @@ class MongoDatabaseFactoryDependentConfiguration {
 
 		GridFsMongoDatabaseFactory(MongoDatabaseFactory mongoDatabaseFactory,
 				MongoConnectionDetails connectionDetails) {
-			Assert.notNull(mongoDatabaseFactory, "MongoDatabaseFactory must not be null");
-			Assert.notNull(connectionDetails, "ConnectionDetails must not be null");
+			Assert.notNull(mongoDatabaseFactory, "'mongoDatabaseFactory' must not be null");
+			Assert.notNull(connectionDetails, "'connectionDetails' must not be null");
 			this.mongoDatabaseFactory = mongoDatabaseFactory;
 			this.connectionDetails = connectionDetails;
 		}

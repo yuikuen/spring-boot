@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -46,7 +47,13 @@ import org.springframework.context.annotation.Configuration;
 public class MongoAutoConfiguration {
 
 	@Bean
-	@ConditionalOnMissingBean(MongoClient.class)
+	@ConditionalOnMissingBean(MongoConnectionDetails.class)
+	PropertiesMongoConnectionDetails mongoConnectionDetails(MongoProperties properties) {
+		return new PropertiesMongoConnectionDetails(properties);
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
 	public MongoClient mongo(ObjectProvider<MongoClientSettingsBuilderCustomizer> builderCustomizers,
 			MongoClientSettings settings) {
 		return new MongoClientFactory(builderCustomizers.orderedStream().toList()).createMongoClient(settings);
@@ -63,11 +70,9 @@ public class MongoAutoConfiguration {
 
 		@Bean
 		StandardMongoClientSettingsBuilderCustomizer standardMongoSettingsCustomizer(MongoProperties properties,
-				ObjectProvider<MongoConnectionDetails> connectionDetailsProvider) {
-			MongoConnectionDetails connectionDetails = connectionDetailsProvider
-				.getIfAvailable(() -> new PropertiesMongoConnectionDetails(properties));
+				MongoConnectionDetails connectionDetails, ObjectProvider<SslBundles> sslBundles) {
 			return new StandardMongoClientSettingsBuilderCustomizer(connectionDetails.getConnectionString(),
-					properties.getUuidRepresentation());
+					properties.getUuidRepresentation(), properties.getSsl(), sslBundles.getIfAvailable());
 		}
 
 	}
