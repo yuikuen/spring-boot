@@ -16,15 +16,19 @@
 
 package org.springframework.boot.autoconfigure.service.connection;
 
-import org.assertj.core.api.InstanceOfAssertFactories;
+import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
-import org.springframework.boot.autoconfigure.service.connection.ConnectionDetailsFactories.CompositeConnectionDetailsFactory;
+import org.springframework.boot.autoconfigure.service.connection.ConnectionDetailsFactories.Registration;
 import org.springframework.core.Ordered;
 import org.springframework.core.test.io.support.MockSpringFactoriesLoader;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 
 /**
  * Tests for {@link ConnectionDetailsFactories}.
@@ -38,43 +42,78 @@ class ConnectionDetailsFactoriesTests {
 	private final MockSpringFactoriesLoader loader = new MockSpringFactoriesLoader();
 
 	@Test
-	void getConnectionDetailsFactoryShouldThrowWhenNoFactoryForSource() {
+	void getRequiredConnectionDetailsWhenNoFactoryForSourceThrowsException() {
 		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
 		assertThatExceptionOfType(ConnectionDetailsFactoryNotFoundException.class)
-			.isThrownBy(() -> factories.getConnectionDetailsFactory("source"));
+			.isThrownBy(() -> factories.getConnectionDetails("source", true));
 	}
 
 	@Test
-	void getConnectionDetailsFactoryShouldReturnSingleFactoryWhenSourceHasOneMatch() {
+	void getOptionalConnectionDetailsWhenNoFactoryForSourceThrowsException() {
+		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
+		assertThat(factories.getConnectionDetails("source", false)).isEmpty();
+	}
+
+	@Test
+	void getConnectionDetailsWhenSourceHasOneMatchReturnsSingleResult() {
 		this.loader.addInstance(ConnectionDetailsFactory.class, new TestConnectionDetailsFactory());
 		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
-		ConnectionDetailsFactory<String, ConnectionDetails> factory = factories.getConnectionDetailsFactory("source");
-		assertThat(factory).isInstanceOf(TestConnectionDetailsFactory.class);
+		Map<Class<?>, ConnectionDetails> connectionDetails = factories.getConnectionDetails("source", false);
+		assertThat(connectionDetails).hasSize(1);
+		assertThat(connectionDetails.get(TestConnectionDetails.class)).isInstanceOf(TestConnectionDetailsImpl.class);
 	}
 
 	@Test
-	@SuppressWarnings("unchecked")
-	void getConnectionDetailsFactoryShouldReturnCompositeFactoryWhenSourceHasMultipleMatches() {
+	void getRequiredConnectionDetailsWhenSourceHasNoMatchTheowsException() {
+		this.loader.addInstance(ConnectionDetailsFactory.class, new NullResultTestConnectionDetailsFactory());
+		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
+		assertThatExceptionOfType(ConnectionDetailsNotFoundException.class)
+			.isThrownBy(() -> factories.getConnectionDetails("source", true));
+	}
+
+	@Test
+	void getOptionalConnectionDetailsWhenSourceHasNoMatchReturnsEmptyMap() {
+		this.loader.addInstance(ConnectionDetailsFactory.class, new NullResultTestConnectionDetailsFactory());
+		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
+		Map<Class<?>, ConnectionDetails> connectionDetails = factories.getConnectionDetails("source", false);
+		assertThat(connectionDetails).isEmpty();
+	}
+
+	@Test
+	void getConnectionDetailsWhenSourceHasMultipleMatchesReturnsMultipleResults() {
+		this.loader.addInstance(ConnectionDetailsFactory.class, new TestConnectionDetailsFactory(),
+				new OtherConnectionDetailsFactory());
+		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
+		Map<Class<?>, ConnectionDetails> connectionDetails = factories.getConnectionDetails("source", false);
+		assertThat(connectionDetails).hasSize(2);
+	}
+
+	@Test
+	void getConnectionDetailsWhenDuplicatesThrowsException() {
 		this.loader.addInstance(ConnectionDetailsFactory.class, new TestConnectionDetailsFactory(),
 				new TestConnectionDetailsFactory());
 		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
-		ConnectionDetailsFactory<String, ConnectionDetails> factory = factories.getConnectionDetailsFactory("source");
-		assertThat(factory).asInstanceOf(InstanceOfAssertFactories.type(CompositeConnectionDetailsFactory.class))
-			.satisfies((composite) -> assertThat(composite.getDelegates()).hasSize(2));
+		assertThatIllegalStateException().isThrownBy(() -> factories.getConnectionDetails("source", false))
+			.withMessage("Duplicate connection details supplied for " + TestConnectionDetails.class.getName());
 	}
 
 	@Test
-	@SuppressWarnings("unchecked")
-	void compositeFactoryShouldHaveOrderedDelegates() {
+	void getRegistrationsReturnsOrderedDelegates() {
 		TestConnectionDetailsFactory orderOne = new TestConnectionDetailsFactory(1);
 		TestConnectionDetailsFactory orderTwo = new TestConnectionDetailsFactory(2);
 		TestConnectionDetailsFactory orderThree = new TestConnectionDetailsFactory(3);
 		this.loader.addInstance(ConnectionDetailsFactory.class, orderOne, orderThree, orderTwo);
 		ConnectionDetailsFactories factories = new ConnectionDetailsFactories(this.loader);
-		ConnectionDetailsFactory<String, ConnectionDetails> factory = factories.getConnectionDetailsFactory("source");
-		assertThat(factory).asInstanceOf(InstanceOfAssertFactories.type(CompositeConnectionDetailsFactory.class))
-			.satisfies((composite) -> assertThat(composite.getDelegates()).containsExactly(orderOne, orderTwo,
-					orderThree));
+		List<Registration<String, ?>> registrations = factories.getRegistrations("source", false);
+		assertThat(registrations.get(0).factory()).isEqualTo(orderOne);
+		assertThat(registrations.get(1).factory()).isEqualTo(orderTwo);
+		assertThat(registrations.get(2).factory()).isEqualTo(orderThree);
+	}
+
+	@Test
+	void factoryLoadFailureDoesNotPreventOtherFactoriesFromLoading() {
+		this.loader.add(ConnectionDetailsFactory.class.getName(), "com.example.NonExistentConnectionDetailsFactory");
+		assertThatNoException().isThrownBy(() -> new ConnectionDetailsFactories(this.loader));
 	}
 
 	private static final class TestConnectionDetailsFactory
@@ -92,7 +131,7 @@ class ConnectionDetailsFactoriesTests {
 
 		@Override
 		public TestConnectionDetails getConnectionDetails(String source) {
-			return new TestConnectionDetails();
+			return new TestConnectionDetailsImpl();
 		}
 
 		@Override
@@ -102,10 +141,39 @@ class ConnectionDetailsFactoriesTests {
 
 	}
 
-	private static final class TestConnectionDetails implements ConnectionDetails {
+	private static final class NullResultTestConnectionDetailsFactory
+			implements ConnectionDetailsFactory<String, TestConnectionDetails> {
 
-		private TestConnectionDetails() {
+		@Override
+		public TestConnectionDetails getConnectionDetails(String source) {
+			return null;
 		}
+
+	}
+
+	private static final class OtherConnectionDetailsFactory
+			implements ConnectionDetailsFactory<String, OtherConnectionDetails> {
+
+		@Override
+		public OtherConnectionDetails getConnectionDetails(String source) {
+			return new OtherConnectionDetailsImpl();
+		}
+
+	}
+
+	private interface TestConnectionDetails extends ConnectionDetails {
+
+	}
+
+	private static final class TestConnectionDetailsImpl implements TestConnectionDetails {
+
+	}
+
+	private interface OtherConnectionDetails extends ConnectionDetails {
+
+	}
+
+	private static final class OtherConnectionDetailsImpl implements OtherConnectionDetails {
 
 	}
 

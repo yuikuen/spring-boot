@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import org.neo4j.driver.AuthToken;
+import org.neo4j.driver.AuthTokenManager;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Config;
 import org.neo4j.driver.Config.TrustStrategy;
@@ -62,15 +63,25 @@ import org.springframework.util.StringUtils;
 public class Neo4jAutoConfiguration {
 
 	@Bean
+	@ConditionalOnMissingBean(Neo4jConnectionDetails.class)
+	PropertiesNeo4jConnectionDetails neo4jConnectionDetails(Neo4jProperties properties,
+			ObjectProvider<AuthTokenManager> authTokenManager) {
+		return new PropertiesNeo4jConnectionDetails(properties, authTokenManager.getIfUnique());
+	}
+
+	@Bean
 	@ConditionalOnMissingBean
 	public Driver neo4jDriver(Neo4jProperties properties, Environment environment,
-			ObjectProvider<ConfigBuilderCustomizer> configBuilderCustomizers,
-			ObjectProvider<Neo4jConnectionDetails> connectionDetailsProvider) {
-		Neo4jConnectionDetails connectionDetails = connectionDetailsProvider
-			.getIfAvailable(() -> new PropertiesNeo4jConnectionDetails(properties));
-		AuthToken authToken = connectionDetails.getAuthToken();
+			Neo4jConnectionDetails connectionDetails,
+			ObjectProvider<ConfigBuilderCustomizer> configBuilderCustomizers) {
+
 		Config config = mapDriverConfig(properties, connectionDetails,
 				configBuilderCustomizers.orderedStream().toList());
+		AuthTokenManager authTokenManager = connectionDetails.getAuthTokenManager();
+		if (authTokenManager != null) {
+			return GraphDatabase.driver(connectionDetails.getUri(), authTokenManager, config);
+		}
+		AuthToken authToken = connectionDetails.getAuthToken();
 		return GraphDatabase.driver(connectionDetails.getUri(), authToken, config);
 	}
 
@@ -152,22 +163,20 @@ public class Neo4jAutoConfiguration {
 
 	private TrustStrategy createTrustStrategy(Neo4jProperties.Security securityProperties, String propertyName,
 			Security.TrustStrategy strategy) {
-		switch (strategy) {
-			case TRUST_ALL_CERTIFICATES:
-				return TrustStrategy.trustAllCertificates();
-			case TRUST_SYSTEM_CA_SIGNED_CERTIFICATES:
-				return TrustStrategy.trustSystemCertificates();
-			case TRUST_CUSTOM_CA_SIGNED_CERTIFICATES:
+		return switch (strategy) {
+			case TRUST_ALL_CERTIFICATES -> TrustStrategy.trustAllCertificates();
+			case TRUST_SYSTEM_CA_SIGNED_CERTIFICATES -> TrustStrategy.trustSystemCertificates();
+			case TRUST_CUSTOM_CA_SIGNED_CERTIFICATES -> {
 				File certFile = securityProperties.getCertFile();
 				if (certFile == null || !certFile.isFile()) {
 					throw new InvalidConfigurationPropertyValueException(propertyName, strategy.name(),
 							"Configured trust strategy requires a certificate file.");
 				}
-				return TrustStrategy.trustCustomCertificateSignedBy(certFile);
-			default:
-				throw new InvalidConfigurationPropertyValueException(propertyName, strategy.name(),
-						"Unknown strategy.");
-		}
+				yield TrustStrategy.trustCustomCertificateSignedBy(certFile);
+			}
+			default -> throw new InvalidConfigurationPropertyValueException(propertyName, strategy.name(),
+					"Unknown strategy.");
+		};
 	}
 
 	/**
@@ -177,8 +186,11 @@ public class Neo4jAutoConfiguration {
 
 		private final Neo4jProperties properties;
 
-		PropertiesNeo4jConnectionDetails(Neo4jProperties properties) {
+		private final AuthTokenManager authTokenManager;
+
+		PropertiesNeo4jConnectionDetails(Neo4jProperties properties, AuthTokenManager authTokenManager) {
 			this.properties = properties;
+			this.authTokenManager = authTokenManager;
 		}
 
 		@Override
@@ -205,6 +217,11 @@ public class Neo4jAutoConfiguration {
 				return AuthTokens.kerberos(kerberosTicket);
 			}
 			return AuthTokens.none();
+		}
+
+		@Override
+		public AuthTokenManager getAuthTokenManager() {
+			return this.authTokenManager;
 		}
 
 	}

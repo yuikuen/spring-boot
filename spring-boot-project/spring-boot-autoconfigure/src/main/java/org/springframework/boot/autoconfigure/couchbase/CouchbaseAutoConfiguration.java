@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,16 @@
 
 package org.springframework.boot.autoconfigure.couchbase;
 
+import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
+import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import com.couchbase.client.core.env.Authenticator;
+import com.couchbase.client.core.env.CertificateAuthenticator;
+import com.couchbase.client.core.env.PasswordAuthenticator;
 import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.ClusterOptions;
 import com.couchbase.client.java.codec.JacksonJsonSerializer;
@@ -41,14 +44,25 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.autoconfigure.couchbase.CouchbaseAutoConfiguration.CouchbaseCondition;
+import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Authentication.Jks;
+import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Authentication.Pem;
+import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Ssl;
 import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties.Timeouts;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.io.ApplicationResourceLoader;
+import org.springframework.boot.ssl.SslBundle;
+import org.springframework.boot.ssl.SslBundles;
+import org.springframework.boot.ssl.pem.PemSslStore;
+import org.springframework.boot.ssl.pem.PemSslStoreDetails;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
-import org.springframework.util.ResourceUtils;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for Couchbase.
@@ -59,6 +73,7 @@ import org.springframework.util.ResourceUtils;
  * @author Moritz Halbritter
  * @author Andy Wilkinson
  * @author Phillip Webb
+ * @author Scott Frederick
  * @since 1.4.0
  */
 @AutoConfiguration(after = JacksonAutoConfiguration.class)
@@ -67,36 +82,68 @@ import org.springframework.util.ResourceUtils;
 @EnableConfigurationProperties(CouchbaseProperties.class)
 public class CouchbaseAutoConfiguration {
 
+	private final ResourceLoader resourceLoader;
+
 	private final CouchbaseProperties properties;
 
-	private final CouchbaseConnectionDetails connectionDetails;
-
-	CouchbaseAutoConfiguration(CouchbaseProperties properties,
-			ObjectProvider<CouchbaseConnectionDetails> connectionDetails) {
+	CouchbaseAutoConfiguration(ResourceLoader resourceLoader, CouchbaseProperties properties) {
+		this.resourceLoader = ApplicationResourceLoader.get(resourceLoader);
 		this.properties = properties;
-		this.connectionDetails = connectionDetails
-			.getIfAvailable(() -> new PropertiesCouchbaseConnectionDetails(properties));
+	}
+
+	@Bean
+	@ConditionalOnMissingBean(CouchbaseConnectionDetails.class)
+	PropertiesCouchbaseConnectionDetails couchbaseConnectionDetails() {
+		return new PropertiesCouchbaseConnectionDetails(this.properties);
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
 	public ClusterEnvironment couchbaseClusterEnvironment(
-			ObjectProvider<ClusterEnvironmentBuilderCustomizer> customizers) {
-		Builder builder = initializeEnvironmentBuilder();
+			ObjectProvider<ClusterEnvironmentBuilderCustomizer> customizers, ObjectProvider<SslBundles> sslBundles) {
+		Builder builder = initializeEnvironmentBuilder(sslBundles.getIfAvailable());
 		customizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
 		return builder.build();
 	}
 
-	@Bean(destroyMethod = "disconnect")
+	@Bean
 	@ConditionalOnMissingBean
-	public Cluster couchbaseCluster(ClusterEnvironment couchbaseClusterEnvironment) {
-		ClusterOptions options = ClusterOptions
-			.clusterOptions(this.connectionDetails.getUsername(), this.connectionDetails.getPassword())
-			.environment(couchbaseClusterEnvironment);
-		return Cluster.connect(this.connectionDetails.getConnectionString(), options);
+	public Authenticator couchbaseAuthenticator(CouchbaseConnectionDetails connectionDetails) throws IOException {
+		if (connectionDetails.getUsername() != null && connectionDetails.getPassword() != null) {
+			return PasswordAuthenticator.create(connectionDetails.getUsername(), connectionDetails.getPassword());
+		}
+		Pem pem = this.properties.getAuthentication().getPem();
+		if (pem.getCertificates() != null) {
+			PemSslStoreDetails details = new PemSslStoreDetails(null, pem.getCertificates(), pem.getPrivateKey());
+			PemSslStore store = PemSslStore.load(details);
+			return CertificateAuthenticator.fromKey(store.privateKey(), pem.getPrivateKeyPassword(),
+					store.certificates());
+		}
+		Jks jks = this.properties.getAuthentication().getJks();
+		if (jks.getLocation() != null) {
+			Resource resource = this.resourceLoader.getResource(jks.getLocation());
+			String keystorePassword = jks.getPassword();
+			try (InputStream inputStream = resource.getInputStream()) {
+				KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
+				store.load(inputStream, (keystorePassword != null) ? keystorePassword.toCharArray() : null);
+				return CertificateAuthenticator.fromKeyStore(store, keystorePassword);
+			}
+			catch (GeneralSecurityException ex) {
+				throw new IllegalStateException("Error reading Couchbase certificate store", ex);
+			}
+		}
+		throw new IllegalStateException("Couchbase authentication requires username and password, or certificates");
 	}
 
-	private ClusterEnvironment.Builder initializeEnvironmentBuilder() {
+	@Bean(destroyMethod = "disconnect")
+	@ConditionalOnMissingBean
+	public Cluster couchbaseCluster(ClusterEnvironment couchbaseClusterEnvironment, Authenticator authenticator,
+			CouchbaseConnectionDetails connectionDetails) {
+		ClusterOptions options = ClusterOptions.clusterOptions(authenticator).environment(couchbaseClusterEnvironment);
+		return Cluster.connect(connectionDetails.getConnectionString(), options);
+	}
+
+	private ClusterEnvironment.Builder initializeEnvironmentBuilder(SslBundles sslBundles) {
 		ClusterEnvironment.Builder builder = ClusterEnvironment.builder();
 		Timeouts timeouts = this.properties.getEnv().getTimeouts();
 		builder.timeoutConfig((config) -> config.kvTimeout(timeouts.getKeyValue())
@@ -112,35 +159,29 @@ public class CouchbaseAutoConfiguration {
 		builder.ioConfig((config) -> config.maxHttpConnections(io.getMaxEndpoints())
 			.numKvConnections(io.getMinEndpoints())
 			.idleHttpConnectionTimeout(io.getIdleHttpConnectionTimeout()));
-		if ((this.connectionDetails instanceof PropertiesCouchbaseConnectionDetails)
-				&& this.properties.getEnv().getSsl().getEnabled()) {
-			builder.securityConfig((config) -> config.enableTls(true)
-				.trustManagerFactory(getTrustManagerFactory(this.properties.getEnv().getSsl())));
+		if (this.properties.getEnv().getSsl().getEnabled()) {
+			configureSsl(builder, sslBundles);
 		}
 		return builder;
 	}
 
-	private TrustManagerFactory getTrustManagerFactory(CouchbaseProperties.Ssl ssl) {
-		String resource = ssl.getKeyStore();
-		try {
-			TrustManagerFactory trustManagerFactory = TrustManagerFactory
-				.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-			KeyStore keyStore = loadKeyStore(resource, ssl.getKeyStorePassword());
-			trustManagerFactory.init(keyStore);
-			return trustManagerFactory;
-		}
-		catch (Exception ex) {
-			throw new IllegalStateException("Could not load Couchbase key store '" + resource + "'", ex);
-		}
+	private void configureSsl(Builder builder, SslBundles sslBundles) {
+		Ssl sslProperties = this.properties.getEnv().getSsl();
+		SslBundle sslBundle = (StringUtils.hasText(sslProperties.getBundle()))
+				? sslBundles.getBundle(sslProperties.getBundle()) : null;
+		Assert.state(sslBundle == null || !sslBundle.getOptions().isSpecified(),
+				"SSL Options cannot be specified with Couchbase");
+		builder.securityConfig((config) -> {
+			config.enableTls(true);
+			TrustManagerFactory trustManagerFactory = getTrustManagerFactory(sslBundle);
+			if (trustManagerFactory != null) {
+				config.trustManagerFactory(trustManagerFactory);
+			}
+		});
 	}
 
-	private KeyStore loadKeyStore(String resource, String keyStorePassword) throws Exception {
-		KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
-		URL url = ResourceUtils.getURL(resource);
-		try (InputStream stream = url.openStream()) {
-			store.load(stream, (keyStorePassword != null) ? keyStorePassword.toCharArray() : null);
-		}
-		return store;
+	private TrustManagerFactory getTrustManagerFactory(SslBundle sslBundle) {
+		return (sslBundle != null) ? sslBundle.getManagers().getTrustManagerFactory() : null;
 	}
 
 	@Configuration(proxyBeanMethods = false)
@@ -187,7 +228,7 @@ public class CouchbaseAutoConfiguration {
 			super(ConfigurationPhase.REGISTER_BEAN);
 		}
 
-		@ConditionalOnProperty(prefix = "spring.couchbase", name = "connection-string")
+		@ConditionalOnProperty("spring.couchbase.connection-string")
 		private static final class CouchbaseUrlCondition {
 
 		}

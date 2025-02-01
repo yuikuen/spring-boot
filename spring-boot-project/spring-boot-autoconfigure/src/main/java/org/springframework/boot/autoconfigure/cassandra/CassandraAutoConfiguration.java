@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,27 +32,35 @@ import com.datastax.oss.driver.api.core.config.DefaultDriverOption;
 import com.datastax.oss.driver.api.core.config.DriverConfigLoader;
 import com.datastax.oss.driver.api.core.config.DriverOption;
 import com.datastax.oss.driver.api.core.config.ProgrammaticDriverConfigLoaderBuilder;
+import com.datastax.oss.driver.api.core.ssl.ProgrammaticSslEngineFactory;
 import com.datastax.oss.driver.internal.core.config.typesafe.DefaultDriverConfigLoader;
 import com.datastax.oss.driver.internal.core.config.typesafe.DefaultProgrammaticDriverConfigLoaderBuilder;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.cassandra.CassandraProperties.Connection;
 import org.springframework.boot.autoconfigure.cassandra.CassandraProperties.Controlconnection;
 import org.springframework.boot.autoconfigure.cassandra.CassandraProperties.Request;
+import org.springframework.boot.autoconfigure.cassandra.CassandraProperties.Ssl;
 import org.springframework.boot.autoconfigure.cassandra.CassandraProperties.Throttler;
 import org.springframework.boot.autoconfigure.cassandra.CassandraProperties.ThrottlerType;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
+import org.springframework.boot.ssl.SslBundle;
+import org.springframework.boot.ssl.SslBundles;
+import org.springframework.boot.ssl.SslOptions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Scope;
 import org.springframework.core.io.Resource;
+import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 /**
  * {@link EnableAutoConfiguration Auto-configuration} for Cassandra.
@@ -66,6 +74,7 @@ import org.springframework.core.io.Resource;
  * @author Moritz Halbritter
  * @author Andy Wilkinson
  * @author Phillip Webb
+ * @author Scott Frederick
  * @since 1.3.0
  */
 @AutoConfiguration
@@ -84,13 +93,14 @@ public class CassandraAutoConfiguration {
 
 	private final CassandraProperties properties;
 
-	private final CassandraConnectionDetails connectionDetails;
-
-	CassandraAutoConfiguration(CassandraProperties properties,
-			ObjectProvider<CassandraConnectionDetails> connectionDetails) {
+	CassandraAutoConfiguration(CassandraProperties properties) {
 		this.properties = properties;
-		this.connectionDetails = connectionDetails
-			.getIfAvailable(() -> new PropertiesCassandraConnectionDetails(properties));
+	}
+
+	@Bean
+	@ConditionalOnMissingBean(CassandraConnectionDetails.class)
+	PropertiesCassandraConnectionDetails cassandraConnectionDetails() {
+		return new PropertiesCassandraConnectionDetails(this.properties);
 	}
 
 	@Bean
@@ -102,49 +112,69 @@ public class CassandraAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	@Scope("prototype")
+	@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 	public CqlSessionBuilder cassandraSessionBuilder(DriverConfigLoader driverConfigLoader,
-			ObjectProvider<CqlSessionBuilderCustomizer> builderCustomizers) {
+			CassandraConnectionDetails connectionDetails,
+			ObjectProvider<CqlSessionBuilderCustomizer> builderCustomizers, ObjectProvider<SslBundles> sslBundles) {
 		CqlSessionBuilder builder = CqlSession.builder().withConfigLoader(driverConfigLoader);
-		configureAuthentication(builder);
-		configureSsl(builder);
+		configureAuthentication(builder, connectionDetails);
+		configureSsl(builder, sslBundles.getIfAvailable());
 		builder.withKeyspace(this.properties.getKeyspaceName());
 		builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
 		return builder;
 	}
 
-	private void configureAuthentication(CqlSessionBuilder builder) {
-		String username = this.connectionDetails.getUsername();
+	private void configureAuthentication(CqlSessionBuilder builder, CassandraConnectionDetails connectionDetails) {
+		String username = connectionDetails.getUsername();
 		if (username != null) {
-			builder.withAuthCredentials(username, this.connectionDetails.getPassword());
+			builder.withAuthCredentials(username, connectionDetails.getPassword());
 		}
 	}
 
-	private void configureSsl(CqlSessionBuilder builder) {
-		if (this.connectionDetails instanceof PropertiesCassandraConnectionDetails && this.properties.isSsl()) {
-			try {
-				builder.withSslContext(SSLContext.getDefault());
-			}
-			catch (NoSuchAlgorithmException ex) {
-				throw new IllegalStateException("Could not setup SSL default context for Cassandra", ex);
-			}
+	private void configureSsl(CqlSessionBuilder builder, SslBundles sslBundles) {
+		Ssl properties = this.properties.getSsl();
+		if (properties == null || !properties.isEnabled()) {
+			return;
 		}
+		String bundleName = properties.getBundle();
+		if (!StringUtils.hasLength(bundleName)) {
+			configureDefaultSslContext(builder);
+		}
+		else {
+			configureSsl(builder, sslBundles.getBundle(bundleName));
+		}
+	}
+
+	private void configureDefaultSslContext(CqlSessionBuilder builder) {
+		try {
+			builder.withSslContext(SSLContext.getDefault());
+		}
+		catch (NoSuchAlgorithmException ex) {
+			throw new IllegalStateException("Could not setup SSL default context for Cassandra", ex);
+		}
+	}
+
+	private void configureSsl(CqlSessionBuilder builder, SslBundle sslBundle) {
+		SslOptions options = sslBundle.getOptions();
+		Assert.state(options.getEnabledProtocols() == null, "SSL protocol options cannot be specified with Cassandra");
+		builder
+			.withSslEngineFactory(new ProgrammaticSslEngineFactory(sslBundle.createSslContext(), options.getCiphers()));
 	}
 
 	@Bean(destroyMethod = "")
 	@ConditionalOnMissingBean
-	public DriverConfigLoader cassandraDriverConfigLoader(
+	public DriverConfigLoader cassandraDriverConfigLoader(CassandraConnectionDetails connectionDetails,
 			ObjectProvider<DriverConfigLoaderBuilderCustomizer> builderCustomizers) {
 		ProgrammaticDriverConfigLoaderBuilder builder = new DefaultProgrammaticDriverConfigLoaderBuilder(
-				() -> cassandraConfiguration(), DefaultDriverConfigLoader.DEFAULT_ROOT_PATH);
+				() -> cassandraConfiguration(connectionDetails), DefaultDriverConfigLoader.DEFAULT_ROOT_PATH);
 		builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
 		return builder.build();
 	}
 
-	private Config cassandraConfiguration() {
+	private Config cassandraConfiguration(CassandraConnectionDetails connectionDetails) {
 		ConfigFactory.invalidateCaches();
 		Config config = ConfigFactory.defaultOverrides();
-		config = config.withFallback(mapConfig());
+		config = config.withFallback(mapConfig(connectionDetails));
 		if (this.properties.getConfig() != null) {
 			config = config.withFallback(loadConfig(this.properties.getConfig()));
 		}
@@ -162,24 +192,24 @@ public class CassandraAutoConfiguration {
 		}
 	}
 
-	private Config mapConfig() {
+	private Config mapConfig(CassandraConnectionDetails connectionDetails) {
 		CassandraDriverOptions options = new CassandraDriverOptions();
 		PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
 		map.from(this.properties.getSessionName())
 			.whenHasText()
 			.to((sessionName) -> options.add(DefaultDriverOption.SESSION_NAME, sessionName));
-		map.from(this.connectionDetails.getUsername())
+		map.from(connectionDetails.getUsername())
 			.to((value) -> options.add(DefaultDriverOption.AUTH_PROVIDER_USER_NAME, value)
-				.add(DefaultDriverOption.AUTH_PROVIDER_PASSWORD, this.connectionDetails.getPassword()));
+				.add(DefaultDriverOption.AUTH_PROVIDER_PASSWORD, connectionDetails.getPassword()));
 		map.from(this.properties::getCompression)
 			.to((compression) -> options.add(DefaultDriverOption.PROTOCOL_COMPRESSION, compression));
 		mapConnectionOptions(options);
 		mapPoolingOptions(options);
 		mapRequestOptions(options);
 		mapControlConnectionOptions(options);
-		map.from(mapContactPoints())
+		map.from(mapContactPoints(connectionDetails))
 			.to((contactPoints) -> options.add(DefaultDriverOption.CONTACT_POINTS, contactPoints));
-		map.from(this.connectionDetails.getLocalDatacenter())
+		map.from(connectionDetails.getLocalDatacenter())
 			.whenHasText()
 			.to((localDatacenter) -> options.add(DefaultDriverOption.LOAD_BALANCING_LOCAL_DATACENTER, localDatacenter));
 		return options.build();
@@ -244,14 +274,11 @@ public class CassandraAutoConfiguration {
 			.to((timeout) -> options.add(DefaultDriverOption.CONTROL_CONNECTION_TIMEOUT, timeout));
 	}
 
-	private List<String> mapContactPoints() {
-		return this.connectionDetails.getContactPoints()
-			.stream()
-			.map((node) -> node.host() + ":" + node.port())
-			.toList();
+	private List<String> mapContactPoints(CassandraConnectionDetails connectionDetails) {
+		return connectionDetails.getContactPoints().stream().map((node) -> node.host() + ":" + node.port()).toList();
 	}
 
-	private static class CassandraDriverOptions {
+	private static final class CassandraDriverOptions {
 
 		private final Map<String, String> options = new LinkedHashMap<>();
 
@@ -289,7 +316,7 @@ public class CassandraAutoConfiguration {
 	/**
 	 * Adapts {@link CassandraProperties} to {@link CassandraConnectionDetails}.
 	 */
-	private static final class PropertiesCassandraConnectionDetails implements CassandraConnectionDetails {
+	static final class PropertiesCassandraConnectionDetails implements CassandraConnectionDetails {
 
 		private final CassandraProperties properties;
 

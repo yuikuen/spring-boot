@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,11 +67,16 @@ public class XADataSourceAutoConfiguration implements BeanClassLoaderAware {
 	private ClassLoader classLoader;
 
 	@Bean
+	@ConditionalOnMissingBean(JdbcConnectionDetails.class)
+	PropertiesJdbcConnectionDetails jdbcConnectionDetails(DataSourceProperties properties) {
+		return new PropertiesJdbcConnectionDetails(properties);
+	}
+
+	@Bean
 	public DataSource dataSource(XADataSourceWrapper wrapper, DataSourceProperties properties,
-			ObjectProvider<JdbcConnectionDetails> connectionDetails, ObjectProvider<XADataSource> xaDataSource)
-			throws Exception {
-		return wrapper.wrapDataSource(xaDataSource.getIfAvailable(() -> createXaDataSource(properties,
-				connectionDetails.getIfAvailable(() -> new PropertiesJdbcConnectionDetails(properties)))));
+			JdbcConnectionDetails connectionDetails, ObjectProvider<XADataSource> xaDataSource) throws Exception {
+		return wrapper
+			.wrapDataSource(xaDataSource.getIfAvailable(() -> createXaDataSource(properties, connectionDetails)));
 	}
 
 	@Override
@@ -91,7 +96,8 @@ public class XADataSourceAutoConfiguration implements BeanClassLoaderAware {
 		try {
 			Class<?> dataSourceClass = ClassUtils.forName(className, this.classLoader);
 			Object instance = BeanUtils.instantiateClass(dataSourceClass);
-			Assert.isInstanceOf(XADataSource.class, instance);
+			Assert.state(instance instanceof XADataSource,
+					() -> "DataSource class " + className + " is not an XADataSource");
 			return (XADataSource) instance;
 		}
 		catch (Exception ex) {
@@ -120,47 +126,6 @@ public class XADataSourceAutoConfiguration implements BeanClassLoaderAware {
 		ConfigurationPropertyNameAliases aliases = new ConfigurationPropertyNameAliases();
 		aliases.addAliases("user", "username");
 		return source.withAliases(aliases);
-	}
-
-	/**
-	 * Adapts {@link DataSourceProperties} to {@link JdbcConnectionDetails}.
-	 */
-	private static class PropertiesJdbcConnectionDetails implements JdbcConnectionDetails {
-
-		private final DataSourceProperties properties;
-
-		PropertiesJdbcConnectionDetails(DataSourceProperties properties) {
-			this.properties = properties;
-		}
-
-		@Override
-		public String getUsername() {
-			return this.properties.determineUsername();
-		}
-
-		@Override
-		public String getPassword() {
-			return this.properties.determinePassword();
-		}
-
-		@Override
-		public String getJdbcUrl() {
-			return this.properties.determineUrl();
-		}
-
-		@Override
-		public String getDriverClassName() {
-			return (this.properties.getDriverClassName() != null) ? this.properties.getDriverClassName()
-					: JdbcConnectionDetails.super.getDriverClassName();
-		}
-
-		@Override
-		public String getXaDataSourceClassName() {
-			return (this.properties.getXa().getDataSourceClassName() != null)
-					? this.properties.getXa().getDataSourceClassName()
-					: JdbcConnectionDetails.super.getXaDataSourceClassName();
-		}
-
 	}
 
 }
