@@ -54,7 +54,9 @@ import org.springframework.security.oauth2.jwt.SupplierJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -140,7 +142,7 @@ class OAuth2ResourceServerJwtConfiguration {
 			RSAPublicKey publicKey = (RSAPublicKey) KeyFactory.getInstance("RSA")
 				.generatePublic(new X509EncodedKeySpec(getKeySpec(this.properties.readPublicKey())));
 			NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withPublicKey(publicKey)
-				.signatureAlgorithm(SignatureAlgorithm.from(exactlyOneAlgorithm()))
+				.signatureAlgorithm(exactlyOneAlgorithm())
 				.build();
 			jwtDecoder.setJwtValidator(getValidators(JwtValidators.createDefault()));
 			return jwtDecoder;
@@ -151,15 +153,18 @@ class OAuth2ResourceServerJwtConfiguration {
 			return Base64.getMimeDecoder().decode(keyValue);
 		}
 
-		private String exactlyOneAlgorithm() {
+		private SignatureAlgorithm exactlyOneAlgorithm() {
 			List<String> algorithms = this.properties.getJwsAlgorithms();
-			int count = (algorithms != null) ? algorithms.size() : 0;
-			if (count != 1) {
-				throw new IllegalStateException(
-						"Creating a JWT decoder using a public key requires exactly one JWS algorithm but " + count
-								+ " were configured");
+			Assert.state(algorithms != null && algorithms.size() == 1,
+					() -> "Creating a JWT decoder using a public key requires exactly one JWS algorithm but "
+							+ algorithms.size() + " were configured");
+			SignatureAlgorithm algorithm = SignatureAlgorithm.from(algorithms.get(0));
+			if (algorithm == null) {
+				throw new InvalidConfigurationPropertyValueException(
+						"spring.security.oauth2.resourceserver.jwt.jws-algorithms",
+						StringUtils.collectionToCommaDelimitedString(algorithms), "Unknown algorithm");
 			}
-			return algorithms.get(0);
+			return algorithm;
 		}
 
 		@Bean
