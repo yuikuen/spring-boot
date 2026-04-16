@@ -29,7 +29,7 @@ class SslBundleRabbitConnectionFactoryBean extends RabbitConnectionFactoryBean {
 
 	private SslBundle sslBundle;
 
-	private boolean enableHostnameVerification;
+	private boolean enableHostnameVerification = true;
 
 	@Override
 	protected void setUpSSL() {
