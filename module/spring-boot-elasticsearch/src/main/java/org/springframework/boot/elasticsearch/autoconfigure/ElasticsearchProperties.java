@@ -208,12 +208,25 @@ public class ElasticsearchProperties {
 			 */
 			private @Nullable String bundle;
 
+			/**
+			 * Whether to perform hostname verification.
+			 */
+			private boolean verifyHostname = true;
+
 			public @Nullable String getBundle() {
 				return this.bundle;
 			}
 
 			public void setBundle(@Nullable String bundle) {
 				this.bundle = bundle;
+			}
+
+			public boolean isVerifyHostname() {
+				return this.verifyHostname;
+			}
+
+			public void setVerifyHostname(boolean verifyHostname) {
+				this.verifyHostname = verifyHostname;
 			}
 
 		}
