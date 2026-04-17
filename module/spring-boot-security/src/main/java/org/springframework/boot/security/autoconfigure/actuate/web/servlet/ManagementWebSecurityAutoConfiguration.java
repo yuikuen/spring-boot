@@ -59,13 +59,13 @@ public final class ManagementWebSecurityAutoConfiguration {
 	@Bean
 	@Order(SecurityFilterProperties.BASIC_AUTH_ORDER)
 	SecurityFilterChain managementSecurityFilterChain(Environment environment, HttpSecurity http) {
-		if (ClassUtils.isPresent("org.springframework.boot.health.actuate.endpoint.HealthEndpoint",
-				getClass().getClassLoader())) {
-			http.authorizeHttpRequests((requests) -> {
+		http.authorizeHttpRequests((requests) -> {
+			if (ClassUtils.isPresent("org.springframework.boot.health.actuate.endpoint.HealthEndpoint",
+					getClass().getClassLoader())) {
 				requests.requestMatchers(healthMatcher(), additionalHealthPathsMatcher()).permitAll();
-				requests.anyRequest().authenticated();
-			});
-		}
+			}
+			requests.anyRequest().authenticated();
+		});
 		if (ClassUtils.isPresent("org.springframework.web.servlet.DispatcherServlet", null)) {
 			http.cors(withDefaults());
 		}

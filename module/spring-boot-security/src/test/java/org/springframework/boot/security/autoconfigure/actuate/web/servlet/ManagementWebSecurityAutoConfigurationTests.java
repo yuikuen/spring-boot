@@ -37,6 +37,7 @@ import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSec
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.testsupport.classpath.ClassPathExclusions;
 import org.springframework.boot.web.context.servlet.AnnotationConfigServletWebApplicationContext;
 import org.springframework.boot.web.server.WebServer;
 import org.springframework.boot.web.server.context.WebServerApplicationContext;
@@ -71,12 +72,10 @@ class ManagementWebSecurityAutoConfigurationTests {
 
 	private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner(contextSupplier(),
 			WebServerApplicationContext.class)
-		.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
-				HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class,
-				InfoEndpointAutoConfiguration.class, EnvironmentEndpointAutoConfiguration.class,
-				EndpointAutoConfiguration.class, WebMvcAutoConfiguration.class, WebEndpointAutoConfiguration.class,
-				SecurityAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class,
-				ManagementWebSecurityAutoConfiguration.class));
+		.withConfiguration(AutoConfigurations.of(InfoEndpointAutoConfiguration.class,
+				EnvironmentEndpointAutoConfiguration.class, EndpointAutoConfiguration.class,
+				WebMvcAutoConfiguration.class, WebEndpointAutoConfiguration.class, SecurityAutoConfiguration.class,
+				ServletWebSecurityAutoConfiguration.class, ManagementWebSecurityAutoConfiguration.class));
 
 	private static Supplier<ConfigurableWebApplicationContext> contextSupplier() {
 		return WebApplicationContextRunner.withMockServletContext(MockWebServerApplicationContext::new);
@@ -84,15 +83,32 @@ class ManagementWebSecurityAutoConfigurationTests {
 
 	@Test
 	void permitAllForHealth() {
-		this.contextRunner.run((context) -> {
-			assertThat(context).hasBean(MANAGEMENT_SECURITY_FILTER_CHAIN_BEAN);
-			HttpStatus status = getResponseStatus(context, "/actuator/health");
-			assertThat(status).isEqualTo(HttpStatus.OK);
-		});
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.run((context) -> {
+				assertThat(context).hasBean(MANAGEMENT_SECURITY_FILTER_CHAIN_BEAN);
+				HttpStatus status = getResponseStatus(context, "/actuator/health");
+				assertThat(status).isEqualTo(HttpStatus.OK);
+			});
 	}
 
 	@Test
 	void securesEverythingElse() {
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.run((context) -> {
+				HttpStatus status = getResponseStatus(context, "/actuator");
+				assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
+				status = getResponseStatus(context, "/foo");
+				assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
+			});
+	}
+
+	@Test
+	@ClassPathExclusions(packages = "org.springframework.boot.health.actuate.endpoint")
+	void securesEverythingElseWhenHealthIsAbsent() {
 		this.contextRunner.run((context) -> {
 			HttpStatus status = getResponseStatus(context, "/actuator");
 			assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
@@ -112,20 +128,28 @@ class ManagementWebSecurityAutoConfigurationTests {
 
 	@Test
 	void usesMatchersBasedOffConfiguredActuatorBasePath() {
-		this.contextRunner.withPropertyValues("management.endpoints.web.base-path=/").run((context) -> {
-			HttpStatus status = getResponseStatus(context, "/health");
-			assertThat(status).isEqualTo(HttpStatus.OK);
-		});
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withPropertyValues("management.endpoints.web.base-path=/")
+			.run((context) -> {
+				HttpStatus status = getResponseStatus(context, "/health");
+				assertThat(status).isEqualTo(HttpStatus.OK);
+			});
 	}
 
 	@Test
 	void backOffIfCustomSecurityIsAdded() {
-		this.contextRunner.withUserConfiguration(CustomSecurityConfiguration.class).run((context) -> {
-			HttpStatus status = getResponseStatus(context, "/actuator/health");
-			assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
-			status = getResponseStatus(context, "/foo");
-			assertThat(status).isEqualTo(HttpStatus.OK);
-		});
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(CustomSecurityConfiguration.class)
+			.run((context) -> {
+				HttpStatus status = getResponseStatus(context, "/actuator/health");
+				assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
+				status = getResponseStatus(context, "/foo");
+				assertThat(status).isEqualTo(HttpStatus.OK);
+			});
 	}
 
 	@Test
@@ -155,6 +179,8 @@ class ManagementWebSecurityAutoConfigurationTests {
 	@Test
 	void withAdditionalPathsOnSamePort() {
 		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
 			.withPropertyValues("management.endpoint.health.group.test1.include=*",
 					"management.endpoint.health.group.test2.include=*",
 					"management.endpoint.health.group.test1.additional-path=server:/check1",
@@ -168,10 +194,14 @@ class ManagementWebSecurityAutoConfigurationTests {
 
 	@Test
 	void withAdditionalPathsOnDifferentPort() {
-		this.contextRunner.withPropertyValues("management.endpoint.health.group.test1.include=*",
-				"management.endpoint.health.group.test2.include=*",
-				"management.endpoint.health.group.test1.additional-path=server:/check1",
-				"management.endpoint.health.group.test2.additional-path=management:/check2", "management.server.port=0")
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withPropertyValues("management.endpoint.health.group.test1.include=*",
+					"management.endpoint.health.group.test2.include=*",
+					"management.endpoint.health.group.test1.additional-path=server:/check1",
+					"management.endpoint.health.group.test2.additional-path=management:/check2",
+					"management.server.port=0")
 			.run((context) -> {
 				assertThat(getResponseStatus(context, "/check1")).isEqualTo(HttpStatus.OK);
 				assertThat(getResponseStatus(context, "/check2")).isEqualTo(HttpStatus.UNAUTHORIZED);
