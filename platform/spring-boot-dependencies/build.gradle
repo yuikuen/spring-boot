@@ -2765,7 +2765,7 @@ bom {
 			releaseNotes("https://github.com/xerial/sqlite-jdbc/releases/tag/{version}")
 		}
 	}
-	library("Testcontainers", "2.0.4") {
+	library("Testcontainers", "2.0.5") {
 		group("org.testcontainers") {
 			bom("testcontainers-bom")
 		}
