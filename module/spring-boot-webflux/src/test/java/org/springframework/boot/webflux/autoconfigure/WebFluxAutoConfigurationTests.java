@@ -910,6 +910,35 @@ class WebFluxAutoConfigurationTests {
 	}
 
 	@Test
+	void apiVersionUsesPathSegmentLast() {
+		this.contextRunner
+			.withPropertyValues("spring.webflux.apiversion.use.path-segment=1",
+					"spring.webflux.apiversion.use.header=hv", "spring.webflux.apiversion.use.query-parameter=rpv",
+					"spring.webflux.apiversion.use.media-type-parameter[application/json]=mtpv")
+			.run((context) -> {
+				DefaultApiVersionStrategy versionStrategy = context.getBean("webFluxApiVersionStrategy",
+						DefaultApiVersionStrategy.class);
+
+				MockServerWebExchange requestWithHeader = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com/test/456").header("hv", "123"));
+				assertThat(versionStrategy.resolveVersion(requestWithHeader)).isEqualTo("123");
+
+				MockServerWebExchange requestWithQueryParameter = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com?rpv=123"));
+				assertThat(versionStrategy.resolveVersion(requestWithQueryParameter)).isEqualTo("123");
+
+				MockServerWebExchange requestWithMediaType = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com/test/456")
+						.header("content-type", "application/json;mtpv=123"));
+				assertThat(versionStrategy.resolveVersion(requestWithMediaType)).isEqualTo("123");
+
+				MockServerWebExchange requestFallbacksToApiSegment = MockServerWebExchange
+					.from(MockServerHttpRequest.get("https://example.com/test/456"));
+				assertThat(versionStrategy.resolveVersion(requestFallbacksToApiSegment)).isEqualTo("456");
+			});
+	}
+
+	@Test
 	void apiVersionBeansAreInjected() {
 		this.contextRunner.withUserConfiguration(ApiVersionConfiguration.class).run((context) -> {
 			DefaultApiVersionStrategy versionStrategy = context.getBean("webFluxApiVersionStrategy",

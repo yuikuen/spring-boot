@@ -301,9 +301,8 @@ public final class WebFluxAutoConfiguration {
 			PropertyMapper map = PropertyMapper.get();
 			map.from(use::getHeader).whenHasText().to(configurer::useRequestHeader);
 			map.from(use::getQueryParameter).whenHasText().to(configurer::useQueryParam);
+			use.getMediaTypeParameter().forEach(configurer::useMediaTypeParameter);
 			map.from(use::getPathSegment).to(configurer::usePathSegment);
-			use.getMediaTypeParameter()
-				.forEach((mediaType, parameterName) -> configurer.useMediaTypeParameter(mediaType, parameterName));
 		}
 
 	}

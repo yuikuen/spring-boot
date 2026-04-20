@@ -1123,6 +1123,42 @@ class WebMvcAutoConfigurationTests {
 	}
 
 	@Test
+	void apiVersionUsesPathSegmentLast() {
+		this.contextRunner
+			.withPropertyValues("spring.mvc.apiversion.use.path-segment=1", "spring.mvc.apiversion.use.header=hv",
+					"spring.mvc.apiversion.use.query-parameter=rpv",
+					"spring.mvc.apiversion.use.media-type-parameter[application/json]=mtpv")
+			.run((context) -> {
+				ApiVersionStrategy versionStrategy = context.getBean("mvcApiVersionStrategy", ApiVersionStrategy.class);
+
+				MockHttpServletRequest requestWithHeader = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				requestWithHeader.addHeader("hv", "123");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"), requestWithHeader);
+				assertThat(versionStrategy.resolveVersion(requestWithHeader)).isEqualTo("123");
+
+				MockHttpServletRequest requestWithQueryParameter = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				requestWithQueryParameter.setQueryString("rpv=123");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"),
+						requestWithQueryParameter);
+				assertThat(versionStrategy.resolveVersion(requestWithQueryParameter)).isEqualTo("123");
+
+				MockHttpServletRequest requestWithMediaType = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"), requestWithMediaType);
+				requestWithMediaType.addHeader(HttpHeaders.CONTENT_TYPE, "application/json;mtpv=123");
+				assertThat(versionStrategy.resolveVersion(requestWithMediaType)).isEqualTo("123");
+
+				MockHttpServletRequest requestFallbacksToApiSegment = new MockHttpServletRequest("GET",
+						"https://example.com/test/456");
+				ServletRequestPathUtils.setParsedRequestPath(RequestPath.parse("/test/456", "/"),
+						requestFallbacksToApiSegment);
+				assertThat(versionStrategy.resolveVersion(requestFallbacksToApiSegment)).isEqualTo("456");
+			});
+	}
+
+	@Test
 	void apiVersionBeansAreInjected() {
 		this.contextRunner.withUserConfiguration(ApiVersionConfiguration.class).run((context) -> {
 			DefaultApiVersionStrategy versionStrategy = context.getBean("mvcApiVersionStrategy",
