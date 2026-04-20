@@ -374,8 +374,8 @@ For example, the properties below will:
 * Configure all HTTP clients to use a one second connect timeout (unless otherwise overridden).
 * Configure HTTP Service clients in the "`echo`" group to:
 ** Use a specific base URL.
-** Have a two second read timeout.
-** Insert API version information using an `X-Version` header.
+** Have a one-second connect timeout.
+** Have a two-second read timeout.
 
 [configprops,yaml]
 ----
@@ -386,11 +386,8 @@ spring:
     serviceclient:
       echo:
         base-url: "https://echo.zuplo.io"
+        connect-timeout: 2s
         read-timeout: 2s
-        apiversion:
-          default: 1.0.0
-          insert:
-            header: X-Version
 ----
 
 
