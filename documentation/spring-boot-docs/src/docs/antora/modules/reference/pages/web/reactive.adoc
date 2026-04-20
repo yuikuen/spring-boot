@@ -284,7 +284,7 @@ The same `@Controller` path can be mapped multiple times to support different ve
 For more details see {url-spring-framework-docs}/web/webflux/controller/ann-requestmapping.html#webflux-ann-requestmapping-version[Spring Framework's reference documentation].
 
 Once mappings have been added, you additionally need to configure Spring WebFlux so that it is able to use any version information sent with a request.
-Typically, versions are sent as HTTP headers, query parameters or as part of the path.
+Typically, versions are sent as HTTP headers, query parameters, media type parameters, or as part of the path.
 
 To configure Spring WebFlux, you can either use a javadoc:org.springframework.web.reactive.config.WebFluxConfigurer[] bean and override the `configureApiVersioning(...)` method, or you can use properties.
 
@@ -300,7 +300,9 @@ spring:
         header: X-Version
 ----
 
-For more complete control, you can also define javadoc:org.springframework.web.reactive.accept.ApiVersionResolver[], javadoc:org.springframework.web.accept.ApiVersionParser[] and javadoc:org.springframework.web.reactive.accept.ApiVersionDeprecationHandler[] beans which will be injected into the auto-configured Spring MVC configuration.
+NOTE: If your setup requires multiple strategies, such as header and query parameter, consider declaring the order programmatically by overriding the `configureApiVersioning` method.
+
+For more complete control, you can also define javadoc:org.springframework.web.reactive.accept.ApiVersionResolver[], javadoc:org.springframework.web.accept.ApiVersionParser[] and javadoc:org.springframework.web.reactive.accept.ApiVersionDeprecationHandler[] beans which will be injected into the auto-configured Spring WebFlux configuration.
 
 TIP: API versioning is also supported on the client-side with both `WebClient` and `RestClient`.
 See xref:io/rest-client.adoc#io.rest-client.apiversioning[] for details.
