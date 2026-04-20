@@ -489,8 +489,8 @@ class ExtractCommand extends Command {
 		public @Nullable File resolve(String originalName, String newName) throws IOException {
 			String layer = this.layers.getLayer(originalName);
 			if (shouldExtractLayer(layer)) {
-				File directory = getLayerDirectory(layer);
-				return assertFileIsContainedInDirectory(directory, new File(directory, newName), newName);
+				File layerDirectory = getLayerDirectory(layer);
+				return assertFileIsContainedInDirectory(layerDirectory, new File(layerDirectory, newName), newName);
 			}
 			return null;
 		}
@@ -499,19 +499,28 @@ class ExtractCommand extends Command {
 		public @Nullable File resolveApplication() throws IOException {
 			String layer = this.layers.getApplicationLayerName();
 			if (shouldExtractLayer(layer)) {
-				File directory = getLayerDirectory(layer);
-				return assertFileIsContainedInDirectory(directory, new File(directory, this.applicationFilename),
-						this.applicationFilename);
+				File layerDirectory = getLayerDirectory(layer);
+				return assertFileIsContainedInDirectory(layerDirectory,
+						new File(layerDirectory, this.applicationFilename), this.applicationFilename);
 			}
 			return null;
 		}
 
-		private File getLayerDirectory(String layer) {
-			return new File(this.directory, layer);
+		private File getLayerDirectory(String layer) throws IOException {
+			return assertLayerDirectoryLocation(new File(this.directory, layer), layer);
 		}
 
 		private boolean shouldExtractLayer(String layer) {
 			return this.layersToExtract.isEmpty() || this.layersToExtract.contains(layer);
+		}
+
+		private File assertLayerDirectoryLocation(File layerDirectory, String layerName) throws IOException {
+			String canonicalOutputPath = this.directory.getCanonicalPath() + File.separator;
+			String canonicalLayerPath = layerDirectory.getCanonicalPath();
+			Assert.state(canonicalLayerPath.startsWith(canonicalOutputPath),
+					() -> "Layer '%s' would be written to '%s'. This is outside the output location of '%s'. Verify the contents of your archive."
+						.formatted(layerName, canonicalLayerPath, canonicalOutputPath));
+			return layerDirectory;
 		}
 
 	}

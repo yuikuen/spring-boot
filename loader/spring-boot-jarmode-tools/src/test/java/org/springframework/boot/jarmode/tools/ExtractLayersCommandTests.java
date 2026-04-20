@@ -174,6 +174,34 @@ class ExtractLayersCommandTests {
 			.withMessageContaining("Entry 'e/../../e.jar' would be written");
 	}
 
+	@Test
+	void runWithLayerNameThatWouldWriteEntriesOutsideDestinationFails() throws Exception {
+		this.command = new ExtractLayersCommand(this.context, new Layers() {
+
+			@Override
+			public Iterator<String> iterator() {
+				return Arrays.asList("a", "b", "c").iterator();
+			}
+
+			@Override
+			public String getLayer(String entryName) {
+				return "../../outside-layer";
+			}
+
+			@Override
+			public String getApplicationLayerName() {
+				return "application";
+			}
+
+		});
+		this.jarFile = createJarFile("test.jar");
+		given(this.context.getArchiveFile()).willReturn(this.jarFile);
+		given(this.context.getWorkingDir()).willReturn(this.extract);
+		assertThatIllegalStateException()
+			.isThrownBy(() -> this.command.run(System.out, Collections.emptyMap(), Collections.emptyList()))
+			.withMessageContaining("Layer '../../outside-layer' would be written to");
+	}
+
 	private File createJarFile(String name) throws Exception {
 		return createJarFile(name, (out) -> {
 		});
