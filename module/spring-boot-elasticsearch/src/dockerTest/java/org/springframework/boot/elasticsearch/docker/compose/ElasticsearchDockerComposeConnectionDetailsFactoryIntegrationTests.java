@@ -49,6 +49,15 @@ class ElasticsearchDockerComposeConnectionDetailsFactoryIntegrationTests {
 		assertThat(sslBundle).isNotNull();
 	}
 
+	@DockerComposeTest(composeFile = "elasticsearch-ssl-compose.yaml",
+			image = TestImage.ELASTICSEARCH_ELASTIC_REGISTRY_9,
+			additionalResources = { "ca.crt", "server.crt", "server.key", "client.crt", "client.key" })
+	void runWithSslCreatesConnectionDetailsForElasticRegistryImage(ElasticsearchConnectionDetails connectionDetails) {
+		assertConnectionDetails(connectionDetails, Protocol.HTTPS);
+		SslBundle sslBundle = connectionDetails.getSslBundle();
+		assertThat(sslBundle).isNotNull();
+	}
+
 	private void assertConnectionDetails(ElasticsearchConnectionDetails connectionDetails, Protocol expectedProtocol) {
 		assertThat(connectionDetails.getUsername()).isEqualTo("elastic");
 		assertThat(connectionDetails.getPassword()).isEqualTo("secret");
