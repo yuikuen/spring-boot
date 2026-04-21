@@ -31,7 +31,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MultiGauge;
 import io.micrometer.core.instrument.MultiGauge.Row;
 import io.micrometer.core.instrument.Tags;
-import io.micrometer.core.instrument.TimeGauge;
 import io.micrometer.core.instrument.binder.MeterBinder;
 import org.jspecify.annotations.Nullable;
 
@@ -44,13 +43,20 @@ import org.springframework.util.Assert;
 
 /**
  * {@link MeterBinder} which registers the SSL chain expiry (soonest to expire certificate
- * in the chain) as a {@link TimeGauge}.
+ * in the chain) for certificate chains in the bundle's key store and trust store as a
+ * {@link MultiGauge}.
  *
  * @author Moritz Halbritter
  */
 class SslMeterBinder implements MeterBinder {
 
 	private static final String CHAIN_EXPIRY_METRIC_NAME = "ssl.chain.expiry";
+
+	private static final String SOURCE_TAG_NAME = "source";
+
+	private static final String KEY_STORE_SOURCE_TAG_VALUE = "keystore";
+
+	private static final String TRUST_STORE_SOURCE_TAG_VALUE = "truststore";
 
 	private final Clock clock;
 
@@ -95,16 +101,23 @@ class SslMeterBinder implements MeterBinder {
 	private void createOrUpdateBundleMetrics(MeterRegistry meterRegistry, BundleInfo bundle) {
 		MultiGauge multiGauge = this.bundleMetrics.getGauge(bundle, meterRegistry);
 		List<Row<CertificateInfo>> rows = new ArrayList<>();
-		for (CertificateChainInfo chain : bundle.getCertificateChains()) {
-			Row<CertificateInfo> row = createRowForChain(bundle, chain);
+		addRows(rows, bundle, bundle.getCertificateChains(), KEY_STORE_SOURCE_TAG_VALUE);
+		addRows(rows, bundle, bundle.getTrustStoreCertificateChains(), TRUST_STORE_SOURCE_TAG_VALUE);
+		multiGauge.register(rows, true);
+	}
+
+	private void addRows(List<Row<CertificateInfo>> rows, BundleInfo bundle, List<CertificateChainInfo> chains,
+			String source) {
+		for (CertificateChainInfo chain : chains) {
+			Row<CertificateInfo> row = createRowForChain(bundle, chain, source);
 			if (row != null) {
 				rows.add(row);
 			}
 		}
-		multiGauge.register(rows, true);
 	}
 
-	private @Nullable Row<CertificateInfo> createRowForChain(BundleInfo bundle, CertificateChainInfo chain) {
+	private @Nullable Row<CertificateInfo> createRowForChain(BundleInfo bundle, CertificateChainInfo chain,
+			String source) {
 		CertificateInfo leastValidCertificate = chain.getCertificates()
 			.stream()
 			.filter((c) -> c.getValidityEnds() != null)
@@ -114,8 +127,8 @@ class SslMeterBinder implements MeterBinder {
 			return null;
 		}
 		String serialNumber = leastValidCertificate.getSerialNumber();
-		Tags tags = Tags.of("chain", chain.getAlias(), "bundle", bundle.getName(), "certificate",
-				(serialNumber != null) ? serialNumber : "");
+		Tags tags = Tags.of("chain", chain.getAlias(), "bundle", bundle.getName(), SOURCE_TAG_NAME, source,
+				"certificate", (serialNumber != null) ? serialNumber : "");
 		return Row.of(tags, leastValidCertificate, this::getChainExpiry);
 	}
 
@@ -186,7 +199,7 @@ class SslMeterBinder implements MeterBinder {
 			private MultiGauge createGauge(MeterRegistry meterRegistry) {
 				return MultiGauge.builder(CHAIN_EXPIRY_METRIC_NAME)
 					.baseUnit("seconds")
-					.description("SSL chain expiry")
+					.description("SSL certificate chain expiry for key store and trust store chains")
 					.register(meterRegistry);
 			}
 
