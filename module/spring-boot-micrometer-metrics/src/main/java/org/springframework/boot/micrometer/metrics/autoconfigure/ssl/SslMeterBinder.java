@@ -31,7 +31,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.MultiGauge;
 import io.micrometer.core.instrument.MultiGauge.Row;
 import io.micrometer.core.instrument.Tags;
-import io.micrometer.core.instrument.TimeGauge;
 import io.micrometer.core.instrument.binder.MeterBinder;
 import org.jspecify.annotations.Nullable;
 
@@ -44,7 +43,8 @@ import org.springframework.util.Assert;
 
 /**
  * {@link MeterBinder} which registers the SSL chain expiry (soonest to expire certificate
- * in the chain) as a {@link TimeGauge}.
+ * in the chain) for certificate chains in the bundle's key store and trust store as a
+ * {@link MultiGauge}.
  *
  * @author Moritz Halbritter
  */
@@ -199,7 +199,7 @@ class SslMeterBinder implements MeterBinder {
 			private MultiGauge createGauge(MeterRegistry meterRegistry) {
 				return MultiGauge.builder(CHAIN_EXPIRY_METRIC_NAME)
 					.baseUnit("seconds")
-					.description("SSL chain expiry")
+					.description("SSL certificate chain expiry for key store and trust store chains")
 					.register(meterRegistry);
 			}
 

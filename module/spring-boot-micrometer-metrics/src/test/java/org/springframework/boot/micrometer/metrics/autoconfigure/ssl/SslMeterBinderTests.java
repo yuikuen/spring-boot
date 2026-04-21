@@ -112,6 +112,8 @@ class SslMeterBinderTests {
 				SslBundle.of(createSslStoreBundle("classpath:certificates/chains2.p12")));
 		sslBundleRegistry.updateBundle("test-0",
 				SslBundle.of(createSslStoreBundle("classpath:certificates/chains.p12")));
+		assertThat(meterRegistry.find("ssl.chain.expiry").tags("bundle", "test-0", "source", "keystore").meters())
+			.hasSize(5);
 		assertThat(Duration.ofSeconds(findExpiryGauge(meterRegistry, "ca", "419224ce190242b2c44069dd3c560192b3b669f3")))
 			.hasDays(1095);
 		assertThat(Duration
