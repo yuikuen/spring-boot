@@ -31,6 +31,8 @@ class ConnectionInputStream extends FilterInputStream {
 
 	private static final int BUFFER_SIZE = 4096;
 
+	private static final int MAX_HEADER_SIZE = 8192;
+
 	ConnectionInputStream(InputStream in) {
 		super(in);
 	}
@@ -45,11 +47,16 @@ class ConnectionInputStream extends FilterInputStream {
 	String readHeader() throws IOException {
 		byte[] buffer = new byte[BUFFER_SIZE];
 		StringBuilder content = new StringBuilder(BUFFER_SIZE);
-		while (content.indexOf(HEADER_END) == -1) {
+		while (content.indexOf(HEADER_END) == -1 && content.length() < MAX_HEADER_SIZE) {
 			int amountRead = checkedRead(buffer, 0, BUFFER_SIZE);
 			content.append(new String(buffer, 0, amountRead));
 		}
-		return content.substring(0, content.indexOf(HEADER_END));
+
+		int endIndex = content.indexOf(HEADER_END);
+		if (endIndex == -1) {
+			throw new IOException("Malformed header");
+		}
+		return content.substring(0, endIndex);
 	}
 
 	/**
