@@ -112,7 +112,21 @@ class GrpcDisableCsrfHttpConfigurerTests {
 	}
 
 	@Test
-	void initWhenEnabledPropertyFalseDoesNothing() {
+	void initWhenEnabledPropertyTrueDoesNothing() {
+		ObjectPostProcessor<Object> objectPostProcessor = ObjectPostProcessor.identity();
+		AuthenticationManagerBuilder authenticationBuilder = new AuthenticationManagerBuilder(objectPostProcessor);
+		HttpSecurity http = new HttpSecurity(objectPostProcessor, authenticationBuilder, new HashMap<>());
+		StaticApplicationContext applicationContext = addApplicationContext(http);
+		TestPropertyValues.of("spring.grpc.server.security.csrf.enabled=true").applyTo(applicationContext);
+		addServiceDiscoverer(applicationContext);
+		addGrpcServletRegistration(applicationContext);
+		CsrfConfigurer<?> csrf = addCsrf(http);
+		this.configurer.init(http);
+		then(csrf).should(never()).requireCsrfProtectionMatcher(any());
+	}
+
+	@Test
+	void initWhenEnabledPropertyFalseDisablesCsrf() {
 		ObjectPostProcessor<Object> objectPostProcessor = ObjectPostProcessor.identity();
 		AuthenticationManagerBuilder authenticationBuilder = new AuthenticationManagerBuilder(objectPostProcessor);
 		HttpSecurity http = new HttpSecurity(objectPostProcessor, authenticationBuilder, new HashMap<>());
@@ -122,16 +136,17 @@ class GrpcDisableCsrfHttpConfigurerTests {
 		addGrpcServletRegistration(applicationContext);
 		CsrfConfigurer<?> csrf = addCsrf(http);
 		this.configurer.init(http);
-		then(csrf).should(never()).requireCsrfProtectionMatcher(any());
+		ArgumentCaptor<RequestMatcher> matcher = ArgumentCaptor.captor();
+		then(csrf).should().requireCsrfProtectionMatcher(matcher.capture());
+		assertThat(matcher.getValue()).isSameAs(GrpcCsrfRequestMatcher.INSTANCE);
 	}
 
 	@Test
-	void initWhenEnabledPropertyTrueDisablesCsrf() {
+	void initWhenEnabledPropertyMissingDisablesCsrf() {
 		ObjectPostProcessor<Object> objectPostProcessor = ObjectPostProcessor.identity();
 		AuthenticationManagerBuilder authenticationBuilder = new AuthenticationManagerBuilder(objectPostProcessor);
 		HttpSecurity http = new HttpSecurity(objectPostProcessor, authenticationBuilder, new HashMap<>());
 		StaticApplicationContext applicationContext = addApplicationContext(http);
-		TestPropertyValues.of("spring.grpc.server.security.csrf.enabled=true").applyTo(applicationContext);
 		addServiceDiscoverer(applicationContext);
 		addGrpcServletRegistration(applicationContext);
 		CsrfConfigurer<?> csrf = addCsrf(http);
