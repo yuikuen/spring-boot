@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import io.grpc.BindableService;
 import io.grpc.ServerServiceDefinition;
 import io.grpc.ServiceDescriptor;
+import io.grpc.Status;
+import io.grpc.StatusException;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.GrpcUtil;
 import io.grpc.netty.NettyServerBuilder;
@@ -36,6 +38,7 @@ import org.mockito.Mockito;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.ssl.SslAutoConfiguration;
 import org.springframework.boot.grpc.server.GrpcServletRegistration;
+import org.springframework.boot.grpc.server.autoconfigure.GrpcServerAutoConfiguration.GrpcAdviceConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.assertj.ApplicationContextAssertProvider;
 import org.springframework.boot.test.context.runner.AbstractApplicationContextRunner;
@@ -51,6 +54,11 @@ import org.springframework.grpc.server.InProcessGrpcServerFactory;
 import org.springframework.grpc.server.NettyGrpcServerFactory;
 import org.springframework.grpc.server.ServerBuilderCustomizer;
 import org.springframework.grpc.server.ShadedNettyGrpcServerFactory;
+import org.springframework.grpc.server.advice.GrpcAdvice;
+import org.springframework.grpc.server.advice.GrpcAdviceDiscoverer;
+import org.springframework.grpc.server.advice.GrpcAdviceExceptionHandler;
+import org.springframework.grpc.server.advice.GrpcExceptionHandler;
+import org.springframework.grpc.server.advice.GrpcExceptionHandlerMethodResolver;
 import org.springframework.grpc.server.lifecycle.GrpcServerLifecycle;
 import org.springframework.grpc.server.service.DefaultGrpcServiceDiscoverer;
 import org.springframework.grpc.server.service.GrpcServiceDiscoverer;
@@ -465,6 +473,43 @@ class GrpcServerAutoConfigurationTests {
 				.with(GrpcServerAutoConfigurationTests.this::serviceBean)
 				.withPropertyValues("spring.grpc.server.servlet.validate-http2=false")
 				.run((context) -> assertThat(context).hasNotFailed());
+		}
+
+	}
+
+	@Nested
+	class GrpcAdviceAutoConfigurationTests {
+
+		private final ApplicationContextRunner contextRunner = GrpcServerAutoConfigurationTests.this.contextRunner;
+
+		@Test
+		void whenNoAdviceDoesNotCreateBeans() {
+			this.contextRunner.run((context) -> {
+				assertThat(context).doesNotHaveBean(GrpcAdviceConfiguration.class);
+				assertThat(context).doesNotHaveBean(GrpcAdviceDiscoverer.class);
+				assertThat(context).doesNotHaveBean(GrpcExceptionHandlerMethodResolver.class);
+				assertThat(context).doesNotHaveBean(GrpcAdviceExceptionHandler.class);
+			});
+		}
+
+		@Test
+		void whenHasAdviceCreatesBeans() {
+			this.contextRunner.withBean(GrpAdviceComponent.class).run((context) -> {
+				assertThat(context).hasSingleBean(GrpcAdviceConfiguration.class);
+				assertThat(context).hasSingleBean(GrpcAdviceDiscoverer.class);
+				assertThat(context).hasSingleBean(GrpcExceptionHandlerMethodResolver.class);
+				assertThat(context).hasSingleBean(GrpcAdviceExceptionHandler.class);
+			});
+		}
+
+		@GrpcAdvice
+		static class GrpAdviceComponent {
+
+			@GrpcExceptionHandler
+			StatusException onIllegalStateException(IllegalStateException ex) {
+				return Status.FAILED_PRECONDITION.withDescription(ex.getMessage()).withCause(ex).asException();
+			}
+
 		}
 
 	}

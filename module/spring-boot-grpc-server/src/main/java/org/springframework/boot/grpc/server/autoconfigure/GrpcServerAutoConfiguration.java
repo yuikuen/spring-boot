@@ -38,6 +38,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.grpc.server.GlobalServerInterceptor;
 import org.springframework.grpc.server.GrpcServerFactory;
 import org.springframework.grpc.server.ServerBuilderCustomizer;
+import org.springframework.grpc.server.advice.GrpcAdvice;
+import org.springframework.grpc.server.advice.GrpcAdviceDiscoverer;
+import org.springframework.grpc.server.advice.GrpcAdviceExceptionHandler;
+import org.springframework.grpc.server.advice.GrpcExceptionHandlerMethodResolver;
 import org.springframework.grpc.server.exception.CompositeGrpcExceptionHandler;
 import org.springframework.grpc.server.exception.GrpcExceptionHandler;
 import org.springframework.grpc.server.exception.GrpcExceptionHandlerInterceptor;
@@ -91,7 +95,8 @@ public final class GrpcServerAutoConfiguration {
 	@Bean
 	@GlobalServerInterceptor
 	@ConditionalOnMissingBean
-	GrpcExceptionHandlerInterceptor globalExceptionHandlerInterceptor(List<GrpcExceptionHandler> exceptionHandlers) {
+	GrpcExceptionHandlerInterceptor grpcGlobalExceptionHandlerInterceptor(
+			List<GrpcExceptionHandler> exceptionHandlers) {
 		CompositeGrpcExceptionHandler compositeHandler = new CompositeGrpcExceptionHandler(
 				exceptionHandlers.toArray(GrpcExceptionHandler[]::new));
 		return new GrpcExceptionHandlerInterceptor(compositeHandler);
@@ -101,6 +106,32 @@ public final class GrpcServerAutoConfiguration {
 	@ConditionalOnClass(name = "com.salesforce.reactivegrpc.common.Function")
 	@Import(ReactiveStubBeanDefinitionRegistrar.class)
 	static class ReactiveStubConfiguration {
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnBean(annotation = GrpcAdvice.class)
+	static class GrpcAdviceConfiguration {
+
+		@Bean
+		@ConditionalOnMissingBean
+		GrpcAdviceDiscoverer grpcAdviceDiscoverer(ApplicationContext applicationContext) {
+			return new GrpcAdviceDiscoverer(applicationContext);
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		GrpcExceptionHandlerMethodResolver grpcExceptionHandlerMethodResolver(
+				GrpcAdviceDiscoverer grpcAdviceDiscoverer) {
+			return new GrpcExceptionHandlerMethodResolver(grpcAdviceDiscoverer);
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		GrpcAdviceExceptionHandler grpcAdviceExceptionHandler(
+				GrpcExceptionHandlerMethodResolver grpcExceptionHandlerMethodResolver) {
+			return new GrpcAdviceExceptionHandler(grpcExceptionHandlerMethodResolver);
+		}
 
 	}
 
