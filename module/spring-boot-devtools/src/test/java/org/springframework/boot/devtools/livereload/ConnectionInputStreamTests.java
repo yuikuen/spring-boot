@@ -20,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
@@ -45,6 +46,14 @@ class ConnectionInputStreamTests {
 		String data = header + "\r\n\r\ncontent\r\n";
 		ConnectionInputStream inputStream = new ConnectionInputStream(new ByteArrayInputStream(data.getBytes()));
 		assertThat(inputStream.readHeader()).isEqualTo(header);
+	}
+
+	@Test
+	void readHeaderThrowsWhenHeaderIsMalformed() {
+		byte[] header = new byte[10000];
+		new Random().nextBytes(header);
+		ConnectionInputStream inputStream = new ConnectionInputStream(new ByteArrayInputStream(header));
+		assertThatIOException().isThrownBy(inputStream::readHeader).withMessage("Malformed header");
 	}
 
 	@Test
