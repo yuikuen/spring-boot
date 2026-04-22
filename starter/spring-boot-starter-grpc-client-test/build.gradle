@@ -18,11 +18,12 @@ plugins {
 	id "org.springframework.boot.starter"
 }
 
-description = "Starter for testing gRPC"
+description = "Starter for testing gRPC client"
 
 dependencies {
 	api(project(":starter:spring-boot-starter-test"))
 
+	api(project(":module:spring-boot-grpc-server"))
 	api(project(":module:spring-boot-grpc-test"))
 	api("io.grpc:grpc-inprocess")
 	api("io.grpc:grpc-stub")

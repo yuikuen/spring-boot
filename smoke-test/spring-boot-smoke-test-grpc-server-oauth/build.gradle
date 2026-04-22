@@ -27,10 +27,8 @@ dependencies {
 	implementation(project(":starter:spring-boot-starter-oauth2-resource-server"))
 	implementation(project(":starter:spring-boot-starter-grpc-server"))
 
-	testImplementation(project(":starter:spring-boot-starter-grpc-client"))
-	testImplementation(project(":starter:spring-boot-starter-grpc-test"))
+	testImplementation(project(":starter:spring-boot-starter-grpc-server-test"))
 	testImplementation(project(":starter:spring-boot-starter-oauth2-client"))
-	testImplementation(project(":starter:spring-boot-starter-test"))
 }
 
 def dependenciesBom = project(":platform:spring-boot-dependencies").extensions.getByName("bom")

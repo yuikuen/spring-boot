@@ -25,7 +25,7 @@ description = "Spring Boot gRPC server and test smoke test"
 dependencies {
 	implementation(project(":starter:spring-boot-starter-grpc-server"))
 
-	testImplementation(project(":starter:spring-boot-starter-grpc-test"))
+	testImplementation(project(":starter:spring-boot-starter-grpc-server-test"))
 }
 
 def dependenciesBom = project(":platform:spring-boot-dependencies").extensions.getByName("bom")
