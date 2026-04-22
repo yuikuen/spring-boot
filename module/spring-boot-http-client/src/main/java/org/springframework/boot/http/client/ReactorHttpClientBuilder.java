@@ -50,17 +50,21 @@ public final class ReactorHttpClientBuilder {
 
 	private final Supplier<HttpClient> factory;
 
+	private final UnaryOperator<HttpClient> factoryDefaults;
+
 	private final UnaryOperator<HttpClient> customizer;
 
 	private final @Nullable ResolvedAddressSelector<? super HttpClientConfig> resolvedAddressSelector;
 
 	public ReactorHttpClientBuilder() {
-		this(HttpClient::create, UnaryOperator.identity(), null);
+		this(HttpClient::create, ReactorHttpClientBuilder::applySpringDefaults, UnaryOperator.identity(), null);
 	}
 
-	private ReactorHttpClientBuilder(Supplier<HttpClient> httpClientFactory, UnaryOperator<HttpClient> customizer,
+	private ReactorHttpClientBuilder(Supplier<HttpClient> factory, UnaryOperator<HttpClient> factoryDefaults,
+			UnaryOperator<HttpClient> customizer,
 			@Nullable ResolvedAddressSelector<? super HttpClientConfig> resolvedAddressSelector) {
-		this.factory = httpClientFactory;
+		this.factory = factory;
+		this.factoryDefaults = factoryDefaults;
 		this.customizer = customizer;
 		this.resolvedAddressSelector = resolvedAddressSelector;
 	}
@@ -74,6 +78,7 @@ public final class ReactorHttpClientBuilder {
 	public ReactorHttpClientBuilder withReactorResourceFactory(ReactorResourceFactory reactorResourceFactory) {
 		Assert.notNull(reactorResourceFactory, "'reactorResourceFactory' must not be null");
 		return new ReactorHttpClientBuilder(() -> HttpClient.create(reactorResourceFactory.getConnectionProvider()),
+				this.factoryDefaults,
 				(httpClient) -> this.customizer.apply(httpClient).runOn(reactorResourceFactory.getLoopResources()),
 				this.resolvedAddressSelector);
 	}
@@ -86,7 +91,31 @@ public final class ReactorHttpClientBuilder {
 	 */
 	public ReactorHttpClientBuilder withHttpClientFactory(Supplier<HttpClient> factory) {
 		Assert.notNull(factory, "'factory' must not be null");
-		return new ReactorHttpClientBuilder(factory, this.customizer, this.resolvedAddressSelector);
+		return new ReactorHttpClientBuilder(factory, this.factoryDefaults, this.customizer,
+				this.resolvedAddressSelector);
+	}
+
+	/**
+	 * Return a new {@link ReactorHttpClientBuilder} that does not apply any defaults when
+	 * first creating the {@link HttpClient}.
+	 * @return a new {@link ReactorHttpClientBuilder} instance
+	 * @since 4.1.0
+	 */
+	public ReactorHttpClientBuilder withoutHttpClientDefaults() {
+		return withHttpClientDefaults(null);
+	}
+
+	/**
+	 * Return a new {@link ReactorHttpClientBuilder} that applies the given factory
+	 * defaults when first creating the {@link HttpClient}.
+	 * @param factoryDefaults the factory to use
+	 * @return a new {@link ReactorHttpClientBuilder} instance
+	 * @since 4.1.0
+	 */
+	public ReactorHttpClientBuilder withHttpClientDefaults(@Nullable UnaryOperator<HttpClient> factoryDefaults) {
+		return new ReactorHttpClientBuilder(this.factory,
+				(factoryDefaults != null) ? factoryDefaults : UnaryOperator.identity(), this.customizer,
+				this.resolvedAddressSelector);
 	}
 
 	/**
@@ -97,7 +126,7 @@ public final class ReactorHttpClientBuilder {
 	 */
 	public ReactorHttpClientBuilder withHttpClientCustomizer(UnaryOperator<HttpClient> customizer) {
 		Assert.notNull(customizer, "'customizer' must not be null");
-		return new ReactorHttpClientBuilder(this.factory,
+		return new ReactorHttpClientBuilder(this.factory, this.factoryDefaults,
 				(httpClient) -> customizer.apply(this.customizer.apply(httpClient)), this.resolvedAddressSelector);
 	}
 
@@ -112,7 +141,8 @@ public final class ReactorHttpClientBuilder {
 	public ReactorHttpClientBuilder withResolvedAddressSelector(
 			ResolvedAddressSelector<? super HttpClientConfig> resolvedAddressSelector) {
 		Assert.notNull(resolvedAddressSelector, "'resolvedAddressSelector' must not be null");
-		return new ReactorHttpClientBuilder(this.factory, this.customizer, resolvedAddressSelector);
+		return new ReactorHttpClientBuilder(this.factory, this.factoryDefaults, this.customizer,
+				resolvedAddressSelector);
 	}
 
 	/**
@@ -122,7 +152,7 @@ public final class ReactorHttpClientBuilder {
 	 */
 	public HttpClient build(@Nullable HttpClientSettings settings) {
 		settings = (settings != null) ? settings : HttpClientSettings.defaults();
-		HttpClient httpClient = applyDefaults(this.factory.get());
+		HttpClient httpClient = this.factoryDefaults.apply(this.factory.get());
 		PropertyMapper map = PropertyMapper.get();
 		httpClient = map.from(settings::connectTimeout).to(httpClient, this::setConnectTimeout);
 		httpClient = map.from(settings::readTimeout).to(httpClient, HttpClient::responseTimeout);
@@ -144,11 +174,6 @@ public final class ReactorHttpClientBuilder {
 		return (inetAddressFilter != null)
 				? new ReactorFilteredResolvedAddressSelector<>(this.resolvedAddressSelector, inetAddressFilter)
 				: this.resolvedAddressSelector;
-	}
-
-	HttpClient applyDefaults(HttpClient httpClient) {
-		// Aligns with Spring Framework defaults
-		return httpClient.compress(true);
 	}
 
 	private HttpClient setConnectTimeout(HttpClient httpClient, Duration timeout) {
@@ -175,6 +200,11 @@ public final class ReactorHttpClientBuilder {
 			.ciphers(SslOptions.asSet(options.getCiphers()))
 			.protocols(options.getEnabledProtocols());
 		spec.sslContext(builder.build());
+	}
+
+	static HttpClient applySpringDefaults(HttpClient httpClient) {
+		// Aligns with Spring Framework defaults in ReactorClientHttpRequestFactory
+		return httpClient.compress(true).proxyWithSystemProperties();
 	}
 
 }

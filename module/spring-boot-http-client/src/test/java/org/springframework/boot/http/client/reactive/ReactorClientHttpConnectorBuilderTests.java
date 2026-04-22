@@ -65,6 +65,27 @@ class ReactorClientHttpConnectorBuilderTests
 	}
 
 	@Test
+	void springHttpClientDefaults() {
+		ReactorClientHttpConnector connector = ClientHttpConnectorBuilder.reactor().build();
+		assertThat(connector).extracting("httpClient.config.acceptGzip").isEqualTo(true);
+	}
+
+	@Test
+	void withoutHttpClientDefaults() {
+		ReactorClientHttpConnector connector = ClientHttpConnectorBuilder.reactor().withoutHttpClientDefaults().build();
+		assertThat(connector).extracting("httpClient.config.acceptGzip").isEqualTo(false);
+	}
+
+	@Test
+	void withHttpClientDefaults() {
+		ReactorClientHttpConnector connector = ClientHttpConnectorBuilder.reactor()
+			.withHttpClientDefaults((httpClient) -> httpClient.baseUrl("test"))
+			.build();
+		assertThat(connector).extracting("httpClient.config.acceptGzip").isEqualTo(false);
+		assertThat(connector).extracting("httpClient.config.baseUrl").isEqualTo("test");
+	}
+
+	@Test
 	void withReactorResourceFactory() {
 		ReactorResourceFactory resourceFactory = spy(new ReactorResourceFactory());
 		ClientHttpConnectorBuilder.reactor().withReactorResourceFactory(resourceFactory).build();
