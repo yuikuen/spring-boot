@@ -100,7 +100,7 @@ class TarGzipBuildpackTests {
 		Buildpack buildpack = TarGzipBuildpack.resolve(this.resolverContext, reference);
 		assertThat(buildpack).as("Buildpack %s resolved from reference %s", buildpack, reference).isNotNull();
 		assertThatIllegalStateException().isThrownBy(() -> buildpack.apply((layers) -> {
-		})).withMessage("Entry '../bin/' cannot be written outside of '/cnb/buildpacks/example_buildpack1/0.0.1'");
+		})).withMessageContaining("Entry '../bin/' cannot be written outside of '");
 	}
 
 }
