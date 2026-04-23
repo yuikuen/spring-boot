@@ -16,6 +16,9 @@
 
 package org.springframework.boot.devtools.remote.server;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.util.Assert;
 
@@ -30,19 +33,20 @@ public class HttpHeaderAccessManager implements AccessManager {
 
 	private final String headerName;
 
-	private final String expectedSecret;
+	private final byte[] expectedSecret;
 
 	public HttpHeaderAccessManager(String headerName, String expectedSecret) {
 		Assert.hasLength(headerName, "'headerName' must not be empty");
 		Assert.hasLength(expectedSecret, "'expectedSecret' must not be empty");
 		this.headerName = headerName;
-		this.expectedSecret = expectedSecret;
+		this.expectedSecret = expectedSecret.getBytes(StandardCharsets.UTF_8);
 	}
 
 	@Override
 	public boolean isAllowed(ServerHttpRequest request) {
 		String providedSecret = request.getHeaders().getFirst(this.headerName);
-		return this.expectedSecret.equals(providedSecret);
+		return (providedSecret != null)
+				&& MessageDigest.isEqual(providedSecret.getBytes(StandardCharsets.UTF_8), this.expectedSecret);
 	}
 
 }
