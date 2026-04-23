@@ -148,6 +148,8 @@ public class ApplicationTemp {
 					assertDirectoryOwnership(attributes.owner(), path);
 				}
 				else {
+					Assert.state(Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS),
+							() -> "'" + path + "' already exists but it is not a directory");
 					try {
 						assertDirectoryOwnership(Files.getOwner(path, LinkOption.NOFOLLOW_LINKS), path);
 					}
