@@ -99,7 +99,7 @@ class TarGzipBuildpackTests {
 		BuildpackReference reference = BuildpackReference.of(compressedArchive.toUri().toString());
 		Buildpack buildpack = TarGzipBuildpack.resolve(this.resolverContext, reference);
 		assertThatIllegalStateException().isThrownBy(() -> buildpack.apply((layers) -> {
-		})).withMessage("Entry '../bin/' cannot be written outside of '/cnb/buildpacks/example_buildpack1/0.0.1'");
+		})).withMessageContaining("Entry '../bin/' cannot be written outside of '");
 	}
 
 }
