@@ -86,7 +86,21 @@ class CassandraAutoConfigurationTests {
 		this.contextRunner.withPropertyValues("spring.cassandra.ssl.enabled=true").run((context) -> {
 			CqlSessionBuilder builder = context.getBean(CqlSessionBuilder.class);
 			assertThat(builder).hasFieldOrPropertyWithValue("programmaticSslFactory", true);
+			assertThat(builder).extracting("programmaticArgumentsBuilder.sslEngineFactory")
+				.hasFieldOrPropertyWithValue("requireHostnameValidation", true);
 		});
+	}
+
+	@Test
+	void cqlSessionBuilderWithSslEnabledAndVerifyHostnameDisabled() {
+		this.contextRunner
+			.withPropertyValues("spring.cassandra.ssl.enabled=true", "spring.cassandra.ssl.verify-hostname=false")
+			.run((context) -> {
+				CqlSessionBuilder builder = context.getBean(CqlSessionBuilder.class);
+				assertThat(builder).hasFieldOrPropertyWithValue("programmaticSslFactory", true);
+				assertThat(builder).extracting("programmaticArgumentsBuilder.sslEngineFactory")
+					.hasFieldOrPropertyWithValue("requireHostnameValidation", false);
+			});
 	}
 
 	@Test
@@ -100,6 +114,24 @@ class CassandraAutoConfigurationTests {
 			.run((context) -> {
 				CqlSessionBuilder builder = context.getBean(CqlSessionBuilder.class);
 				assertThat(builder).hasFieldOrPropertyWithValue("programmaticSslFactory", true);
+				assertThat(builder).extracting("programmaticArgumentsBuilder.sslEngineFactory")
+					.hasFieldOrPropertyWithValue("requireHostnameValidation", true);
+			});
+	}
+
+	@Test
+	@WithPackageResources("test.jks")
+	void cqlSessionBuilderWithSslBundleAndVerifyHostnameDisabled() {
+		this.contextRunner
+			.withPropertyValues("spring.cassandra.ssl.bundle=test-bundle", "spring.cassandra.ssl.verify-hostname=false",
+					"spring.ssl.bundle.jks.test-bundle.keystore.location=classpath:test.jks",
+					"spring.ssl.bundle.jks.test-bundle.keystore.password=secret",
+					"spring.ssl.bundle.jks.test-bundle.key.password=password")
+			.run((context) -> {
+				CqlSessionBuilder builder = context.getBean(CqlSessionBuilder.class);
+				assertThat(builder).hasFieldOrPropertyWithValue("programmaticSslFactory", true);
+				assertThat(builder).extracting("programmaticArgumentsBuilder.sslEngineFactory")
+					.hasFieldOrPropertyWithValue("requireHostnameValidation", false);
 			});
 	}
 

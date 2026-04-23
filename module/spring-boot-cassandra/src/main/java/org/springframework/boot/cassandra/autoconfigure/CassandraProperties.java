@@ -227,6 +227,11 @@ public class CassandraProperties {
 		private @Nullable Boolean enabled;
 
 		/**
+		 * Whether to perform hostname verification.
+		 */
+		private boolean verifyHostname = true;
+
+		/**
 		 * SSL bundle name.
 		 */
 		private @Nullable String bundle;
@@ -245,6 +250,14 @@ public class CassandraProperties {
 
 		public void setBundle(@Nullable String bundle) {
 			this.bundle = bundle;
+		}
+
+		public boolean isVerifyHostname() {
+			return this.verifyHostname;
+		}
+
+		public void setVerifyHostname(boolean verifyHostname) {
+			this.verifyHostname = verifyHostname;
 		}
 
 	}
