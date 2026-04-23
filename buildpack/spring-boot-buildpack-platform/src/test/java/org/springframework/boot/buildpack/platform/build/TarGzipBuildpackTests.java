@@ -25,6 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -89,6 +90,17 @@ class TarGzipBuildpackTests {
 		BuildpackReference reference = BuildpackReference.of("/test/i/am/missing/buildpack.tar");
 		Buildpack buildpack = TarGzipBuildpack.resolve(this.resolverContext, reference);
 		assertThat(buildpack).isNull();
+	}
+
+	@Test
+	void resolveWillNotIApplyEntriesOutsideOfOutputLocation() throws Exception {
+		Path compressedArchive = this.testTarGzip
+			.createArchive((entryName) -> entryName.endsWith(".toml") ? entryName : "../" + entryName);
+		BuildpackReference reference = BuildpackReference.of(compressedArchive.toUri().toString());
+		Buildpack buildpack = TarGzipBuildpack.resolve(this.resolverContext, reference);
+		assertThat(buildpack).as("Buildpack %s resolved from reference %s", buildpack, reference).isNotNull();
+		assertThatIllegalStateException().isThrownBy(() -> buildpack.apply((layers) -> {
+		})).withMessage("Entry '../bin/' cannot be written outside of '/cnb/buildpacks/example_buildpack1/0.0.1'");
 	}
 
 }

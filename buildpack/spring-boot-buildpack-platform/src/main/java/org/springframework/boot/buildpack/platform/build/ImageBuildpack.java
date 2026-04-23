@@ -141,6 +141,10 @@ final class ImageBuildpack implements Buildpack {
 					out.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
 					TarArchiveEntry entry = in.getNextEntry();
 					while (entry != null) {
+						String entryName = entry.getName();
+						Path entryPath = Path.of(entryName);
+						Assert.state(entryPath.toAbsolutePath().equals(entryPath.toAbsolutePath().normalize()),
+								() -> "Malformed zip entry name '%s'".formatted(entryName));
 						out.putArchiveEntry(entry);
 						StreamUtils.copy(in, out);
 						out.closeArchiveEntry();

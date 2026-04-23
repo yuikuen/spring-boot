@@ -31,6 +31,7 @@ import org.jspecify.annotations.Nullable;
 
 import org.springframework.boot.buildpack.platform.docker.type.Layer;
 import org.springframework.boot.buildpack.platform.io.IOConsumer;
+import org.springframework.util.Assert;
 import org.springframework.util.StreamUtils;
 
 /**
@@ -87,19 +88,23 @@ final class TarGzipBuildpack implements Buildpack {
 	private void copyAndRebaseEntries(OutputStream outputStream) throws IOException {
 		String id = this.coordinates.getSanitizedId();
 		Path basePath = Paths.get("/cnb/buildpacks/", id, this.coordinates.getVersion());
-		try (TarArchiveInputStream tar = new TarArchiveInputStream(
+		try (TarArchiveInputStream tarInputStream = new TarArchiveInputStream(
 				new GzipCompressorInputStream(Files.newInputStream(this.path)));
-				TarArchiveOutputStream output = new TarArchiveOutputStream(outputStream)) {
-			writeBasePathEntries(output, basePath);
-			TarArchiveEntry entry = tar.getNextEntry();
+				TarArchiveOutputStream tarOutputStream = new TarArchiveOutputStream(outputStream)) {
+			writeBasePathEntries(tarOutputStream, basePath);
+			TarArchiveEntry entry = tarInputStream.getNextEntry();
 			while (entry != null) {
-				entry.setName(basePath + "/" + entry.getName());
-				output.putArchiveEntry(entry);
-				StreamUtils.copy(tar, output);
-				output.closeArchiveEntry();
-				entry = tar.getNextEntry();
+				String entryName = entry.getName();
+				Path entryPath = basePath.resolve(entryName);
+				Assert.state(entryPath.toAbsolutePath().normalize().startsWith(basePath.toAbsolutePath()),
+						() -> "Entry '%s' cannot be written outside of '%s'".formatted(entryName, basePath));
+				entry.setName(basePath + "/" + entryName);
+				tarOutputStream.putArchiveEntry(entry);
+				StreamUtils.copy(tarInputStream, tarOutputStream);
+				tarOutputStream.closeArchiveEntry();
+				entry = tarInputStream.getNextEntry();
 			}
-			output.finish();
+			tarOutputStream.finish();
 		}
 	}
 

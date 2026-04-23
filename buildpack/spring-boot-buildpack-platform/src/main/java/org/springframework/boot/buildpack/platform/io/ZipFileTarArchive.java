@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.util.Enumeration;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -94,7 +95,11 @@ public class ZipFileTarArchive implements TarArchive {
 
 	private TarArchiveEntry convert(ZipArchiveEntry zipEntry) {
 		byte linkFlag = (zipEntry.isDirectory()) ? TarConstants.LF_DIR : TarConstants.LF_NORMAL;
-		TarArchiveEntry tarEntry = new TarArchiveEntry(zipEntry.getName(), linkFlag, true);
+		String entryName = zipEntry.getName();
+		Path entryPath = Path.of(entryName);
+		Assert.state(entryPath.toAbsolutePath().equals(entryPath.toAbsolutePath().normalize()),
+				() -> "Malformed zip entry name '%s'".formatted(entryName));
+		TarArchiveEntry tarEntry = new TarArchiveEntry(entryName, linkFlag, true);
 		tarEntry.setUserId(this.owner.getUid());
 		tarEntry.setGroupId(this.owner.getGid());
 		tarEntry.setModTime(NORMALIZED_MOD_TIME);

@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -51,18 +52,22 @@ class TestTarGzip {
 	}
 
 	Path createArchive() throws Exception {
-		return createArchive(true);
+		return createArchive(true, UnaryOperator.identity());
+	}
+
+	Path createArchive(UnaryOperator<String> entryNameProcessor) throws Exception {
+		return createArchive(true, entryNameProcessor);
 	}
 
 	Path createEmptyArchive() throws Exception {
-		return createArchive(false);
+		return createArchive(false, UnaryOperator.identity());
 	}
 
-	private Path createArchive(boolean addContent) throws Exception {
+	private Path createArchive(boolean addContent, UnaryOperator<String> entryNameProcessor) throws Exception {
 		Path path = Paths.get(this.buildpackDir.getAbsolutePath(), "buildpack.tar");
 		Path archive = Files.createFile(path);
 		if (addContent) {
-			writeBuildpackContentToArchive(archive);
+			writeBuildpackContentToArchive(archive, entryNameProcessor);
 		}
 		return compressBuildpackArchive(archive);
 	}
@@ -74,7 +79,8 @@ class TestTarGzip {
 		return tgzPath;
 	}
 
-	private void writeBuildpackContentToArchive(Path archive) throws Exception {
+	private void writeBuildpackContentToArchive(Path archive, UnaryOperator<String> entryNameProcessor)
+			throws Exception {
 		StringBuilder buildpackToml = new StringBuilder();
 		buildpackToml.append("[buildpack]\n");
 		buildpackToml.append("id = \"example/buildpack1\"\n");
@@ -92,10 +98,10 @@ class TestTarGzip {
 				echo "---> build"
 				""";
 		try (TarArchiveOutputStream tar = new TarArchiveOutputStream(Files.newOutputStream(archive))) {
-			writeEntry(tar, "buildpack.toml", buildpackToml.toString());
-			writeEntry(tar, "bin/");
-			writeEntry(tar, "bin/detect", detectScript);
-			writeEntry(tar, "bin/build", buildScript);
+			writeEntry(tar, entryNameProcessor.apply("buildpack.toml"), buildpackToml.toString());
+			writeEntry(tar, entryNameProcessor.apply("bin/"));
+			writeEntry(tar, entryNameProcessor.apply("bin/detect"), detectScript);
+			writeEntry(tar, entryNameProcessor.apply("bin/build"), buildScript);
 			tar.finish();
 		}
 	}
