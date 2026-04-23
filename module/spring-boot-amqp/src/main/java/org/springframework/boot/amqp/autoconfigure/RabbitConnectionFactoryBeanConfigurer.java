@@ -130,25 +130,15 @@ public class RabbitConnectionFactoryBeanConfigurer {
 			.to(factory::setRequestedHeartbeat);
 		map.from(this.rabbitProperties::getRequestedChannelMax).to(factory::setRequestedChannelMax);
 		SslBundle sslBundle = this.connectionDetails.getSslBundle();
-		if (sslBundle != null) {
-			applySslBundle(factory, sslBundle);
-		}
-		else {
-			RabbitProperties.Ssl ssl = this.rabbitProperties.getSsl();
-			if (ssl.determineEnabled()) {
-				factory.setUseSSL(true);
-				map.from(ssl::getAlgorithm).to(factory::setSslAlgorithm);
-				map.from(ssl::getKeyStoreType).to(factory::setKeyStoreType);
-				map.from(ssl::getKeyStore).to(factory::setKeyStore);
-				map.from(ssl::getKeyStorePassword).to(factory::setKeyStorePassphrase);
-				map.from(ssl::getKeyStoreAlgorithm).to(factory::setKeyStoreAlgorithm);
-				map.from(ssl::getTrustStoreType).to(factory::setTrustStoreType);
-				map.from(ssl::getTrustStore).to(factory::setTrustStore);
-				map.from(ssl::getTrustStorePassword).to(factory::setTrustStorePassphrase);
-				map.from(ssl::getTrustStoreAlgorithm).to(factory::setTrustStoreAlgorithm);
-				map.from(ssl::isValidateServerCertificate)
-					.to((validate) -> factory.setSkipServerCertificateValidation(!validate));
-				map.from(ssl::isVerifyHostname).to(factory::setEnableHostnameVerification);
+		RabbitProperties.Ssl ssl = this.rabbitProperties.getSsl();
+		if (sslBundle != null || ssl.determineEnabled()) {
+			factory.setUseSSL(true);
+			map.from(ssl::isVerifyHostname).to(factory::setEnableHostnameVerification);
+			if (sslBundle != null) {
+				applySslBundle(factory, sslBundle);
+			}
+			else {
+				applySslProperties(factory, map, ssl);
 			}
 		}
 		map.from(this.rabbitProperties::getConnectionTimeout)
@@ -164,11 +154,24 @@ public class RabbitConnectionFactoryBeanConfigurer {
 			.to(factory::setMaxInboundMessageBodySize);
 	}
 
-	private static void applySslBundle(RabbitConnectionFactoryBean factory, SslBundle bundle) {
-		factory.setUseSSL(true);
+	private void applySslBundle(RabbitConnectionFactoryBean factory, SslBundle bundle) {
 		if (factory instanceof SslBundleRabbitConnectionFactoryBean sslFactory) {
 			sslFactory.setSslBundle(bundle);
 		}
+	}
+
+	private void applySslProperties(RabbitConnectionFactoryBean factory, PropertyMapper map, RabbitProperties.Ssl ssl) {
+		map.from(ssl::getAlgorithm).to(factory::setSslAlgorithm);
+		map.from(ssl::getKeyStoreType).to(factory::setKeyStoreType);
+		map.from(ssl::getKeyStore).to(factory::setKeyStore);
+		map.from(ssl::getKeyStorePassword).to(factory::setKeyStorePassphrase);
+		map.from(ssl::getKeyStoreAlgorithm).to(factory::setKeyStoreAlgorithm);
+		map.from(ssl::getTrustStoreType).to(factory::setTrustStoreType);
+		map.from(ssl::getTrustStore).to(factory::setTrustStore);
+		map.from(ssl::getTrustStorePassword).to(factory::setTrustStorePassphrase);
+		map.from(ssl::getTrustStoreAlgorithm).to(factory::setTrustStoreAlgorithm);
+		map.from(ssl::isValidateServerCertificate)
+			.to((validate) -> factory.setSkipServerCertificateValidation(!validate));
 	}
 
 }
