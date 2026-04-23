@@ -50,7 +50,7 @@ class RandomValuePropertySourceTests {
 
 	@Test
 	void getPropertyWhenStringReturnsValue() {
-		assertThat(this.source.getProperty("random.string")).isNotNull();
+		assertThat(this.source.getProperty("random.string")).isNotNull().asString().containsPattern("^[0-9a-f]{32}$");
 	}
 
 	@Test
