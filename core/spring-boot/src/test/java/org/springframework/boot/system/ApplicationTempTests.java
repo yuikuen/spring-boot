@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.EnumSet;
 import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.util.FileSystemUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * Tests for {@link ApplicationTemp}.
@@ -83,6 +85,29 @@ class ApplicationTempTests {
 			assertDirectoryPermissions(path);
 			assertDirectoryPermissions(temp.getDir("sub").toPath());
 		}
+	}
+
+	@Test
+	void whenDirectoryExistsWithWrongPermissionsGetDirThrows() throws IOException {
+		ApplicationTemp temp = new ApplicationTemp();
+		Path path = temp.getDir().toPath();
+		Files.getFileAttributeView(path, PosixFileAttributeView.class)
+			.setPermissions(EnumSet.allOf(PosixFilePermission.class));
+		assertThatIllegalStateException().isThrownBy(new ApplicationTemp()::getDir)
+			.withMessageContaining("does not have the permissions");
+		FileSystemUtils.deleteRecursively(path);
+	}
+
+	@Test
+	void whenSymlinkExistsInDirectoryLocationGetDirThrows() throws IOException {
+		ApplicationTemp temp = new ApplicationTemp();
+		Path path = temp.getDir().toPath();
+		FileSystemUtils.deleteRecursively(path);
+		Path linkTarget = Files.createTempDirectory("application-test-tests");
+		Files.createSymbolicLink(path, linkTarget);
+		assertThatIllegalStateException().isThrownBy(new ApplicationTemp()::getDir)
+			.withMessageContaining("already exists but it is not a directory");
+		FileSystemUtils.deleteRecursively(path);
 	}
 
 	private void assertDirectoryPermissions(Path path) throws IOException {
