@@ -116,7 +116,7 @@ public final class CassandraAutoConfiguration {
 			ObjectProvider<CqlSessionBuilderCustomizer> builderCustomizers) {
 		CqlSessionBuilder builder = CqlSession.builder().withConfigLoader(driverConfigLoader);
 		configureAuthentication(builder, connectionDetails);
-		configureSsl(builder, connectionDetails);
+		configureSsl(builder, connectionDetails, this.properties.getSsl().isVerifyHostname());
 		builder.withKeyspace(this.properties.getKeyspaceName());
 		builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
 		return builder;
@@ -130,15 +130,16 @@ public final class CassandraAutoConfiguration {
 		}
 	}
 
-	private void configureSsl(CqlSessionBuilder builder, CassandraConnectionDetails connectionDetails) {
+	private void configureSsl(CqlSessionBuilder builder, CassandraConnectionDetails connectionDetails,
+			boolean verifyHostname) {
 		SslBundle sslBundle = connectionDetails.getSslBundle();
 		if (sslBundle == null) {
 			return;
 		}
 		SslOptions options = sslBundle.getOptions();
 		Assert.state(options.getEnabledProtocols() == null, "SSL protocol options cannot be specified with Cassandra");
-		builder
-			.withSslEngineFactory(new ProgrammaticSslEngineFactory(sslBundle.createSslContext(), options.getCiphers()));
+		builder.withSslEngineFactory(
+				new ProgrammaticSslEngineFactory(sslBundle.createSslContext(), options.getCiphers(), verifyHostname));
 	}
 
 	@Bean(destroyMethod = "")
