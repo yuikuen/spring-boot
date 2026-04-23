@@ -36,6 +36,7 @@ import org.springframework.boot.health.autoconfigure.registry.HealthContributorR
 import org.springframework.boot.security.autoconfigure.web.reactive.ReactiveWebSecurityAutoConfiguration;
 import org.springframework.boot.test.context.assertj.AssertableReactiveWebApplicationContext;
 import org.springframework.boot.test.context.runner.ReactiveWebApplicationContextRunner;
+import org.springframework.boot.testsupport.classpath.ClassPathExclusions;
 import org.springframework.boot.webflux.autoconfigure.WebFluxAutoConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -68,22 +69,26 @@ import static org.springframework.security.config.Customizer.withDefaults;
 class ReactiveManagementWebSecurityAutoConfigurationTests {
 
 	private final ReactiveWebApplicationContextRunner contextRunner = new ReactiveWebApplicationContextRunner()
-		.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
-				HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class,
-				InfoEndpointAutoConfiguration.class, WebFluxAutoConfiguration.class,
+		.withConfiguration(AutoConfigurations.of(InfoEndpointAutoConfiguration.class, WebFluxAutoConfiguration.class,
 				EnvironmentEndpointAutoConfiguration.class, EndpointAutoConfiguration.class,
 				WebEndpointAutoConfiguration.class, ReactiveWebSecurityAutoConfiguration.class,
 				ReactiveManagementWebSecurityAutoConfiguration.class));
 
 	@Test
 	void permitAllForHealth() {
-		this.contextRunner.withUserConfiguration(UserDetailsServiceConfiguration.class)
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(UserDetailsServiceConfiguration.class)
 			.run((context) -> assertThat(getAuthenticateHeader(context, "/actuator/health")).isNull());
 	}
 
 	@Test
 	void withAdditionalPathsOnSamePort() {
-		this.contextRunner.withUserConfiguration(UserDetailsServiceConfiguration.class)
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(UserDetailsServiceConfiguration.class)
 			.withPropertyValues("management.endpoint.health.group.test1.include=*",
 					"management.endpoint.health.group.test2.include=*",
 					"management.endpoint.health.group.test1.additional-path=server:/check1",
@@ -97,7 +102,10 @@ class ReactiveManagementWebSecurityAutoConfigurationTests {
 
 	@Test
 	void withAdditionalPathsOnDifferentPort() {
-		this.contextRunner.withUserConfiguration(UserDetailsServiceConfiguration.class)
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(UserDetailsServiceConfiguration.class)
 			.withPropertyValues("management.endpoint.health.group.test1.include=*",
 					"management.endpoint.health.group.test2.include=*",
 					"management.endpoint.health.group.test1.additional-path=server:/check1",
@@ -112,6 +120,19 @@ class ReactiveManagementWebSecurityAutoConfigurationTests {
 
 	@Test
 	void securesEverythingElse() {
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(UserDetailsServiceConfiguration.class)
+			.run((context) -> {
+				assertThat(getRequiredAuthenticateHeader(context, "/actuator").get(0)).contains("Basic realm=");
+				assertThat(getRequiredAuthenticateHeader(context, "/foo").toString()).contains("Basic realm=");
+			});
+	}
+
+	@Test
+	@ClassPathExclusions(packages = "org.springframework.boot.health.actuate.endpoint")
+	void securesEverythingElseWhenHealthIsAbsent() {
 		this.contextRunner.withUserConfiguration(UserDetailsServiceConfiguration.class).run((context) -> {
 			assertThat(getRequiredAuthenticateHeader(context, "/actuator").get(0)).contains("Basic realm=");
 			assertThat(getRequiredAuthenticateHeader(context, "/foo").toString()).contains("Basic realm=");
@@ -120,16 +141,22 @@ class ReactiveManagementWebSecurityAutoConfigurationTests {
 
 	@Test
 	void noExistingAuthenticationManagerOrUserDetailsService() {
-		this.contextRunner.run((context) -> {
-			assertThat(getAuthenticateHeader(context, "/actuator/health")).isNull();
-			assertThat(getRequiredAuthenticateHeader(context, "/actuator").get(0)).contains("Basic realm=");
-			assertThat(getRequiredAuthenticateHeader(context, "/foo").toString()).contains("Basic realm=");
-		});
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.run((context) -> {
+				assertThat(getAuthenticateHeader(context, "/actuator/health")).isNull();
+				assertThat(getRequiredAuthenticateHeader(context, "/actuator").get(0)).contains("Basic realm=");
+				assertThat(getRequiredAuthenticateHeader(context, "/foo").toString()).contains("Basic realm=");
+			});
 	}
 
 	@Test
 	void usesMatchersBasedOffConfiguredActuatorBasePath() {
-		this.contextRunner.withUserConfiguration(UserDetailsServiceConfiguration.class)
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(UserDetailsServiceConfiguration.class)
 			.withPropertyValues("management.endpoints.web.base-path=/")
 			.run((context) -> {
 				assertThat(getAuthenticateHeader(context, "/health")).isNull();
@@ -139,18 +166,26 @@ class ReactiveManagementWebSecurityAutoConfigurationTests {
 
 	@Test
 	void backsOffIfCustomSecurityIsAdded() {
-		this.contextRunner.withUserConfiguration(CustomSecurityConfiguration.class).run((context) -> {
-			assertThat(getRequiredLocationHeader(context, "/actuator/health").toString()).contains("/login");
-			assertThat(getLocationHeader(context, "/foo")).isNull();
-		});
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(CustomSecurityConfiguration.class)
+			.run((context) -> {
+				assertThat(getRequiredLocationHeader(context, "/actuator/health").toString()).contains("/login");
+				assertThat(getLocationHeader(context, "/foo")).isNull();
+			});
 	}
 
 	@Test
 	void backsOffWhenWebFilterChainProxyBeanPresent() {
-		this.contextRunner.withUserConfiguration(WebFilterChainProxyConfiguration.class).run((context) -> {
-			assertThat(getRequiredLocationHeader(context, "/actuator/health").toString()).contains("/login");
-			assertThat(getRequiredLocationHeader(context, "/foo").toString()).contains("/login");
-		});
+		this.contextRunner
+			.withConfiguration(AutoConfigurations.of(HealthContributorAutoConfiguration.class,
+					HealthContributorRegistryAutoConfiguration.class, HealthEndpointAutoConfiguration.class))
+			.withUserConfiguration(WebFilterChainProxyConfiguration.class)
+			.run((context) -> {
+				assertThat(getRequiredLocationHeader(context, "/actuator/health").toString()).contains("/login");
+				assertThat(getRequiredLocationHeader(context, "/foo").toString()).contains("/login");
+			});
 	}
 
 	private @Nullable List<String> getAuthenticateHeader(AssertableReactiveWebApplicationContext context, String path) {

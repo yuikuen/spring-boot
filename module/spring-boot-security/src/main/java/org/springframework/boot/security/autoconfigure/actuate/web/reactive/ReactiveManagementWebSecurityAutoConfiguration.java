@@ -38,6 +38,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.WebFilterChainProxy;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.cors.reactive.PreFlightRequestHandler;
 import org.springframework.web.cors.reactive.PreFlightRequestWebFilter;
 
@@ -63,7 +64,10 @@ public final class ReactiveManagementWebSecurityAutoConfiguration {
 	@Bean
 	SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http, PreFlightRequestHandler handler) {
 		http.authorizeExchange((exchanges) -> {
-			exchanges.matchers(healthMatcher(), additionalHealthPathsMatcher()).permitAll();
+			if (ClassUtils.isPresent("org.springframework.boot.health.actuate.endpoint.HealthEndpoint",
+					getClass().getClassLoader())) {
+				exchanges.matchers(healthMatcher(), additionalHealthPathsMatcher()).permitAll();
+			}
 			exchanges.anyExchange().authenticated();
 		});
 		PreFlightRequestWebFilter filter = new PreFlightRequestWebFilter(handler);
