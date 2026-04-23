@@ -27,8 +27,11 @@ import java.util.EnumSet;
 import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import org.springframework.util.FileSystemUtils;
 
@@ -88,6 +91,7 @@ class ApplicationTempTests {
 	}
 
 	@Test
+	@DisabledOnOs(OS.WINDOWS)
 	void whenDirectoryExistsWithWrongPermissionsGetDirThrows() throws IOException {
 		ApplicationTemp temp = new ApplicationTemp();
 		Path path = temp.getDir().toPath();
@@ -104,7 +108,12 @@ class ApplicationTempTests {
 		Path path = temp.getDir().toPath();
 		FileSystemUtils.deleteRecursively(path);
 		Path linkTarget = Files.createTempDirectory("application-test-tests");
-		Files.createSymbolicLink(path, linkTarget);
+		try {
+			Files.createSymbolicLink(path, linkTarget);
+		}
+		catch (Exception ex) {
+			Assumptions.abort("Symlink creation not supported");
+		}
 		assertThatIllegalStateException().isThrownBy(new ApplicationTemp()::getDir)
 			.withMessageContaining("already exists but it is not a directory");
 		FileSystemUtils.deleteRecursively(path);
