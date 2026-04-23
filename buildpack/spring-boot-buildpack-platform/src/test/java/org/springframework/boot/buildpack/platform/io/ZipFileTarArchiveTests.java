@@ -31,6 +31,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * Tests for {@link ZipFileTarArchive}.
@@ -55,7 +56,7 @@ class ZipFileTarArchiveTests {
 	@SuppressWarnings("NullAway") // Test null check
 	void createWhenOwnerIsNullThrowsException() throws Exception {
 		File file = new File(this.tempDir, "test.zip");
-		writeTestZip(file);
+		writeTestZip(file, "");
 		assertThatIllegalArgumentException().isThrownBy(() -> new ZipFileTarArchive(file, null))
 			.withMessage("'owner' must not be null");
 	}
@@ -64,7 +65,7 @@ class ZipFileTarArchiveTests {
 	void writeToAdaptsContent() throws Exception {
 		Owner owner = Owner.of(123, 456);
 		File file = new File(this.tempDir, "test.zip");
-		writeTestZip(file);
+		writeTestZip(file, "");
 		TarArchive tarArchive = TarArchive.fromZip(file, owner);
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		tarArchive.writeTo(outputStream);
@@ -84,12 +85,23 @@ class ZipFileTarArchiveTests {
 		}
 	}
 
-	private void writeTestZip(File file) throws IOException {
+	@Test
+	void writeToDoesNotIncludeEntriesThatWouldBeWrittenOutsideOfDestination() throws Exception {
+		Owner owner = Owner.of(123, 456);
+		File file = new File(this.tempDir, "test.zip");
+		writeTestZip(file, "../");
+		TarArchive tarArchive = TarArchive.fromZip(file, owner);
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		assertThatIllegalStateException().isThrownBy(() -> tarArchive.writeTo(outputStream))
+			.withMessage("Malformed zip entry name '../spring/'");
+	}
+
+	private void writeTestZip(File file, String prefix) throws IOException {
 		try (ZipArchiveOutputStream zip = new ZipArchiveOutputStream(file)) {
-			ZipArchiveEntry dirEntry = new ZipArchiveEntry("spring/");
+			ZipArchiveEntry dirEntry = new ZipArchiveEntry(prefix + "spring/");
 			zip.putArchiveEntry(dirEntry);
 			zip.closeArchiveEntry();
-			ZipArchiveEntry fileEntry = new ZipArchiveEntry("spring/boot");
+			ZipArchiveEntry fileEntry = new ZipArchiveEntry(prefix + "spring/boot");
 			fileEntry.setUnixMode(0755);
 			zip.putArchiveEntry(fileEntry);
 			zip.write("test".getBytes(StandardCharsets.UTF_8));

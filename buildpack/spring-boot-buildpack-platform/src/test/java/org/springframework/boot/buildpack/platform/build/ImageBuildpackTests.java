@@ -183,18 +183,36 @@ class ImageBuildpackTests extends AbstractJsonTests {
 		assertThat(buildpack).isNull();
 	}
 
+	@Test
+	void resolveWhenEntryWouldWriteOutsideOfDestinationThrowsException() throws Exception {
+		Image image = Image.of(getContent("buildpack-image.json"));
+		ImageReference imageReference = ImageReference.of("example/buildpack1:latest");
+		BuildpackResolverContext resolverContext = mock(BuildpackResolverContext.class);
+		given(resolverContext.getBuildpackLayersMetadata()).willReturn(BuildpackLayersMetadata.fromJson("{}"));
+		given(resolverContext.fetchImage(eq(imageReference), eq(ImageType.BUILDPACK))).willReturn(image);
+		willAnswer((invocation) -> withMockLayers(invocation, "..")).given(resolverContext)
+			.exportImageLayers(eq(imageReference), any());
+		BuildpackReference reference = BuildpackReference.of("example/buildpack1");
+		assertThatIllegalStateException().isThrownBy(() -> ImageBuildpack.resolve(resolverContext, reference))
+			.withMessage("Malformed zip entry name '../cnb/'");
+	}
+
 	private @Nullable Object withMockLayers(InvocationOnMock invocation) {
+		return withMockLayers(invocation, "");
+	}
+
+	private @Nullable Object withMockLayers(InvocationOnMock invocation, String entryPrefix) {
 		try {
 			IOBiConsumer<String, TarArchive> consumer = invocation.getArgument(1);
 			File tarFile = File.createTempFile("create-builder-test-", null);
 			try (TarArchiveOutputStream tarOut = new TarArchiveOutputStream(new FileOutputStream(tarFile))) {
 				tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
-				writeTarEntry(tarOut, "/cnb/");
-				writeTarEntry(tarOut, "/cnb/buildpacks/");
-				writeTarEntry(tarOut, "/cnb/buildpacks/example_buildpack/");
-				writeTarEntry(tarOut, "/cnb/buildpacks/example_buildpack/0.0.1/");
-				writeTarEntry(tarOut, "/cnb/buildpacks/example_buildpack/0.0.1/buildpack.toml");
-				writeTarEntry(tarOut, "/cnb/buildpacks/example_buildpack/0.0.1/" + this.longFilePath);
+				writeTarEntry(tarOut, entryPrefix + "/cnb/");
+				writeTarEntry(tarOut, entryPrefix + "/cnb/buildpacks/");
+				writeTarEntry(tarOut, entryPrefix + "/cnb/buildpacks/example_buildpack/");
+				writeTarEntry(tarOut, entryPrefix + "/cnb/buildpacks/example_buildpack/0.0.1/");
+				writeTarEntry(tarOut, entryPrefix + "/cnb/buildpacks/example_buildpack/0.0.1/buildpack.toml");
+				writeTarEntry(tarOut, entryPrefix + "/cnb/buildpacks/example_buildpack/0.0.1/" + this.longFilePath);
 				tarOut.finish();
 			}
 			try (FileInputStream tarFileStream = new FileInputStream(tarFile)) {
