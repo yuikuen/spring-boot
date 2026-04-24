@@ -881,8 +881,22 @@ public abstract class AbstractServletWebServerFactoryTests {
 		assertThat(sessionCookieConfig.getPath()).isEqualTo("/testpath");
 		assertThat(sessionCookieConfig.isHttpOnly()).isTrue();
 		assertThat(sessionCookieConfig.isSecure()).isTrue();
-		assertThat(sessionCookieConfig.getAttribute("Partitioned")).isEqualTo("true");
+		assertThat(sessionCookieConfig.getAttribute("Partitioned")).isEqualTo("");
 		assertThat(sessionCookieConfig.getMaxAge()).isEqualTo(60);
+	}
+
+	@Test
+	void sessionCookiePartitionedAttribute() throws Exception {
+		ConfigurableServletWebServerFactory factory = getFactory();
+		factory.getSettings().getSession().getCookie().setPartitioned(true);
+		factory.addInitializers(new ServletRegistrationBean<>(new CookieServlet(false), "/"));
+		this.webServer = factory.getWebServer();
+		this.webServer.start();
+		ClientHttpResponse clientResponse = getClientResponse(getLocalUrl("/"));
+		List<String> setCookieHeaders = clientResponse.getHeaders().get("Set-Cookie");
+		assertThat(setCookieHeaders).satisfiesExactlyInAnyOrder(
+				(header) -> assertThat(header).startsWith("JSESSIONID=").contains("; Partitioned"),
+				(header) -> assertThat(header).isEqualTo("test=test"));
 	}
 
 	@ParameterizedTest
@@ -1212,7 +1226,7 @@ public abstract class AbstractServletWebServerFactoryTests {
 		assertThat(sessionCookieConfig.isHttpOnly()).isTrue();
 		assertThat(sessionCookieConfig.isSecure()).isTrue();
 		assertThat(sessionCookieConfig.getMaxAge()).isEqualTo(60);
-		assertThat(sessionCookieConfig.getAttribute("Partitioned")).isEqualTo("false");
+		assertThat(sessionCookieConfig.getAttribute("Partitioned")).isEqualTo("");
 	}
 
 	@Test

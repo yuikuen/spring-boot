@@ -97,9 +97,7 @@ public final class ServletContextInitializers implements Iterable<ServletContext
 			map.from(cookie::getHttpOnly).to(config::setHttpOnly);
 			map.from(cookie::getSecure).to(config::setSecure);
 			map.from(cookie::getMaxAge).asInt(Duration::getSeconds).to(config::setMaxAge);
-			map.from(cookie::getPartitioned)
-				.as(Object::toString)
-				.to((partitioned) -> config.setAttribute("Partitioned", partitioned));
+			map.from(cookie::getPartitioned).to((partitioned) -> config.setAttribute("Partitioned", ""));
 		}
 
 		@Contract("!null -> !null")
