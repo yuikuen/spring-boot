@@ -105,6 +105,7 @@ dependencies {
 	implementation("org.apache.tomcat.embed:tomcat-embed-core")
 	implementation("org.assertj:assertj-core")
 	implementation("org.cache2k:cache2k-spring")
+	implementation("org.eclipse.jetty:jetty-server")
 	implementation("org.apache.groovy:groovy")
 	implementation("org.glassfish.jersey.containers:jersey-container-servlet-core")
 	implementation("org.glassfish.jersey.core:jersey-server")

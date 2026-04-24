@@ -520,6 +520,15 @@ include-code::MyTomcatConfiguration[]
 
 
 
+[[howto.webserver.enable-multiple-connectors-in-jetty]]
+== Enable Multiple Connectors with Jetty
+
+You can register additional Jetty javadoc:org.eclipse.jetty.server.Connector[] instances by adding a javadoc:org.springframework.boot.jetty.JettyServerCustomizer[] to the javadoc:org.springframework.boot.jetty.ConfigurableJettyWebServerFactory[], as shown in the following example:
+
+include-code::MyJettyConfiguration[]
+
+
+
 [[howto.webserver.enable-tomcat-mbean-registry]]
 == Enable Tomcat's MBean Registry
 
