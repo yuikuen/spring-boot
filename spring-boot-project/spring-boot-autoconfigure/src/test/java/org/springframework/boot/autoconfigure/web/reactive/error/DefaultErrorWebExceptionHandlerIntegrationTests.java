@@ -461,6 +461,27 @@ class DefaultErrorWebExceptionHandlerIntegrationTests {
 	}
 
 	@Test
+	void escapeHtmlInTimestampAndRequestIdAttributes() {
+		this.contextRunner.withPropertyValues("spring.mustache.prefix=classpath:/unknown/")
+			.withUserConfiguration(CustomErrorAttributesWithHtmlInTimestampAndRequestId.class)
+			.run((context) -> {
+				WebTestClient client = getWebClient(context);
+				String body = client.get()
+					.uri("/")
+					.accept(MediaType.TEXT_HTML)
+					.exchange()
+					.expectStatus()
+					.isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR)
+					.expectHeader()
+					.contentType(TEXT_HTML_UTF8)
+					.expectBody(String.class)
+					.returnResult()
+					.getResponseBody();
+				assertThat(body).doesNotContain("<script>").contains("&lt;script&gt;");
+			});
+	}
+
+	@Test
 	void testExceptionWithNullMessage() {
 		this.contextRunner.withPropertyValues("spring.mustache.prefix=classpath:/unknown/").run((context) -> {
 			WebTestClient client = getWebClient(context);
@@ -773,6 +794,28 @@ class DefaultErrorWebExceptionHandlerIntegrationTests {
 				public Map<String, Object> getErrorAttributes(ServerRequest request, ErrorAttributeOptions options) {
 					Map<String, Object> attributes = new LinkedHashMap<>(super.getErrorAttributes(request, options));
 					attributes.remove("status");
+					return attributes;
+				}
+
+			};
+		}
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	static class CustomErrorAttributesWithHtmlInTimestampAndRequestId {
+
+		@Bean
+		ErrorAttributes errorAttributes() {
+			return new DefaultErrorAttributes() {
+
+				@Override
+				public Map<String, Object> getErrorAttributes(ServerRequest request,
+						ErrorAttributeOptions options) {
+					Map<String, Object> attributes = new LinkedHashMap<>(
+							super.getErrorAttributes(request, options));
+					attributes.put("timestamp", "<script>alert('xss')</script>");
+					attributes.put("requestId", "<script>alert('xss')</script>");
 					return attributes;
 				}
 
