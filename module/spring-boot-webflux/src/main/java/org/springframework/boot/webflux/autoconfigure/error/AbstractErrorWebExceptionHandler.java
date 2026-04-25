@@ -17,7 +17,6 @@
 package org.springframework.boot.webflux.autoconfigure.error;
 
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -236,17 +235,17 @@ public abstract class AbstractErrorWebExceptionHandler implements ErrorWebExcept
 	protected Mono<ServerResponse> renderDefaultErrorView(ServerResponse.BodyBuilder responseBody,
 			Map<String, @Nullable Object> error) {
 		StringBuilder builder = new StringBuilder();
-		Date timestamp = (Date) error.get("timestamp");
+		Object timestamp = error.get("timestamp");
 		Object message = error.get("message");
 		Object trace = error.get("trace");
 		Object requestId = error.get("requestId");
 		builder.append("<html><body><h1>Whitelabel Error Page</h1>")
 			.append("<p>This application has no configured error view, so you are seeing this as a fallback.</p>")
 			.append("<div id='created'>")
-			.append(timestamp)
+			.append(htmlEscape(timestamp))
 			.append("</div>")
 			.append("<div>[")
-			.append(requestId)
+			.append(htmlEscape(requestId))
 			.append("] There was an unexpected error (type=")
 			.append(htmlEscape(error.get("error")))
 			.append(", status=")

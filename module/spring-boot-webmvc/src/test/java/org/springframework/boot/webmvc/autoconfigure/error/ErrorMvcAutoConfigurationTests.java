@@ -91,6 +91,30 @@ class ErrorMvcAutoConfigurationTests {
 	}
 
 	@Test
+	void renderEscapesHtmlInErrorAttributes() {
+		this.contextRunner.run((context) -> {
+			View errorView = context.getBean("error", View.class);
+			ErrorAttributes errorAttributes = context.getBean(ErrorAttributes.class);
+			DispatcherServletWebRequest webRequest = createWebRequest(new IllegalStateException("Exception message"),
+					false);
+			Map<String, @Nullable Object> attributes = errorAttributes.getErrorAttributes(webRequest, withAllOptions());
+			attributes.put("error", "<script>alert('xss-error')</script>");
+			attributes.put("message", "<script>alert('xss-message')</script>");
+			attributes.put("timestamp", "<script>alert('xss-timestamp')</script>");
+			attributes.put("trace", "<script>alert('xss-trace')</script>");
+			HttpServletResponse response = webRequest.getResponse();
+			assertThat(response).isNotNull();
+			errorView.render(attributes, webRequest.getRequest(), response);
+			String responseString = ((MockHttpServletResponse) response).getContentAsString();
+			assertThat(responseString).contains("&lt;script&gt;alert(&#39;xss-error&#39;)&lt;/script&gt;")
+				.contains("&lt;script&gt;alert(&#39;xss-message&#39;)&lt;/script&gt;")
+				.contains("&lt;script&gt;alert(&#39;xss-timestamp&#39;)&lt;/script&gt;")
+				.contains("&lt;script&gt;alert(&#39;xss-trace&#39;)&lt;/script&gt;")
+				.doesNotContain("<script>");
+		});
+	}
+
+	@Test
 	void renderWhenAlreadyCommittedLogsMessage(CapturedOutput output) {
 		this.contextRunner.run((context) -> {
 			View errorView = context.getBean("error", View.class);
