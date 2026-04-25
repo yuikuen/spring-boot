@@ -83,6 +83,11 @@ NOTE: Having containers managed by Testcontainers instead of as Spring beans pro
 It can happen that containers are shutdown before the beans relying on container functionality are cleaned up.
 This can lead to exceptions being thrown by client beans, for example, due to loss of connection.
 
+WARNING: When using Testcontainers' JUnit extension with static fields annotated with javadoc:org.testcontainers.junit.jupiter.Container[format=annotation], container instances are stopped after the test class has run.
+Spring's TestContext Framework may cache the javadoc:org.springframework.context.ApplicationContext[] beyond that point and reuse it for another test class with the same configuration.
+If the cached application context contains beans that depend on a container that has already been stopped, later tests or bean destruction callbacks may fail.
+When the application context should remain usable for as long as it is cached, prefer managing containers as Spring beans or importing container declarations with javadoc:org.springframework.boot.testcontainers.context.ImportTestcontainers[format=annotation].
+
 Container beans are created and started once per application context managed by Spring's TestContext Framework.
 For details about how TestContext Framework manages the underlying application contexts and beans therein, please refer to the {url-spring-framework-docs}[Spring Framework documentation].
 
