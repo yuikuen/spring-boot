@@ -40,6 +40,11 @@ include-code::MyIntegrationTests[]
 The example above will start up a Neo4j container before any of the tests are run.
 The lifecycle of the container instance is managed by Testcontainers, as described in {url-testcontainers-docs}/test_framework_integration/junit_5/#extension[their official documentation].
 
+When using the JUnit extension, container instances are stopped after the test class has run (for static fields) or after each test method (for non-static fields).
+This can cause issues when used with Spring Boot tests, as Spring's TestContext Framework may cache the javadoc:org.springframework.context.ApplicationContext[] beyond that point and reuse it for another test class or method with the same configuration.
+If the cached application context contains beans that depend on a container that has already been stopped, later tests or bean destruction callbacks may fail.
+For this reason, you should prefer xref:#testing.testcontainers.spring-beans[managing containers as Spring beans] or xref:#testing.testcontainers.importing-configuration-interfaces[importing container declarations] when the application context should remain usable for as long as it is cached.
+
 NOTE: In most cases, you will additionally need to configure the application to connect to the service running in the container.
 
 
@@ -82,14 +87,15 @@ TIP: When your application beans rely on functionality of containers, prefer con
 NOTE: Having containers managed by Testcontainers instead of as Spring beans provides no guarantee of the order in which beans and containers will shutdown.
 It can happen that containers are shutdown before the beans relying on container functionality are cleaned up.
 This can lead to exceptions being thrown by client beans, for example, due to loss of connection.
+When the application context should remain usable for as long as it is cached, prefer managing containers as Spring beans or importing container declarations with javadoc:org.springframework.boot.testcontainers.context.ImportTestcontainers[format=annotation].
 
 Container beans are created and started once per application context managed by Spring's TestContext Framework.
-For details about how TestContext Framework manages the underlying application contexts and beans therein, please refer to the {url-spring-framework-docs}[Spring Framework documentation].
+For details about how the TestContext Framework manages the underlying application contexts and beans therein, please refer to the {url-spring-framework-docs}[Spring Framework documentation].
 
 Container beans are stopped as part of the TestContext Framework's standard application context shutdown process.
 When the application context gets shutdown, the containers are shutdown as well.
 This usually happens after all tests using that specific cached application context have finished executing.
-It may also happen earlier, depending on the caching behavior configured in TestContext Framework.
+It may also happen earlier, depending on the caching behavior configured in the TestContext Framework.
 
 NOTE: A single test container instance can, and often is, retained across execution of tests from multiple test classes.
 
