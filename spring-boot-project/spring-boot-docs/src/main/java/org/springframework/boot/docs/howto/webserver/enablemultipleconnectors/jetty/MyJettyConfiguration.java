@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.springframework.boot.docs.howto.webserver.enablemultipleconnectorsinjetty;
+package org.springframework.boot.docs.howto.webserver.enablemultipleconnectors.jetty;
 
 import org.eclipse.jetty.server.ServerConnector;
 

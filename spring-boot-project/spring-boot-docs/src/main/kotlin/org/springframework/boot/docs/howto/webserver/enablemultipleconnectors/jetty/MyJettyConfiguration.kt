@@ -14,31 +14,28 @@
  * limitations under the License.
  */
 
-package org.springframework.boot.docs.howto.webserver.enablemultipleconnectorsintomcat
+package org.springframework.boot.docs.howto.webserver.enablemultipleconnectors.jetty
 
-import org.apache.catalina.connector.Connector
-import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory
+import org.eclipse.jetty.server.Server
+import org.eclipse.jetty.server.ServerConnector
+import org.springframework.boot.web.embedded.jetty.ConfigurableJettyWebServerFactory
+import org.springframework.boot.web.embedded.jetty.JettyServerCustomizer
 import org.springframework.boot.web.server.WebServerFactoryCustomizer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 @Configuration(proxyBeanMethods = false)
-class MyTomcatConfiguration {
+class MyJettyConfiguration {
 
 	@Bean
-	fun connectorCustomizer(): WebServerFactoryCustomizer<TomcatServletWebServerFactory> {
-		return WebServerFactoryCustomizer { tomcat: TomcatServletWebServerFactory ->
-			tomcat.addAdditionalTomcatConnectors(
-				createConnector()
-			)
+	fun connectorCustomizer(): WebServerFactoryCustomizer<ConfigurableJettyWebServerFactory> {
+		return WebServerFactoryCustomizer { jetty: ConfigurableJettyWebServerFactory ->
+			jetty.addServerCustomizers(JettyServerCustomizer { server: Server ->
+				val connector = ServerConnector(server)
+				connector.setPort(8081)
+				server.addConnector(connector)
+			})
 		}
 	}
 
-	private fun createConnector(): Connector {
-		val connector = Connector("org.apache.coyote.http11.Http11NioProtocol")
-		connector.port = 8081
-		return connector
-	}
-
 }
-

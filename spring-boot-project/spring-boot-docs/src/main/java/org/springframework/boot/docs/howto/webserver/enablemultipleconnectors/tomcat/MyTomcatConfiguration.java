@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.springframework.boot.docs.howto.webserver.enablemultipleconnectorsintomcat;
+package org.springframework.boot.docs.howto.webserver.enablemultipleconnectors.tomcat;
 
 import org.apache.catalina.connector.Connector;
 
