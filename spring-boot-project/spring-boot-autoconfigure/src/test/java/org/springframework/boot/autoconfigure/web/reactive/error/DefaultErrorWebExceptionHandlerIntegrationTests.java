@@ -461,9 +461,9 @@ class DefaultErrorWebExceptionHandlerIntegrationTests {
 	}
 
 	@Test
-	void escapeHtmlInTimestampAndRequestIdAttributes() {
+	void escapeHtmlInErrorAttributes() {
 		this.contextRunner.withPropertyValues("spring.mustache.prefix=classpath:/unknown/")
-			.withUserConfiguration(CustomErrorAttributesWithHtmlInTimestampAndRequestId.class)
+			.withUserConfiguration(CustomErrorAttributesWithEscaping.class)
 			.run((context) -> {
 				WebTestClient client = getWebClient(context);
 				String body = client.get()
@@ -477,7 +477,9 @@ class DefaultErrorWebExceptionHandlerIntegrationTests {
 					.expectBody(String.class)
 					.returnResult()
 					.getResponseBody();
-				assertThat(body).doesNotContain("<script>").contains("&lt;script&gt;");
+				assertThat(body).doesNotContain("<script>")
+					.contains("&lt;script&gt;")
+					.contains("xss-error", "xss-message", "xss-requestId", "xss-timestamp", "xss-trace");
 			});
 	}
 
@@ -803,19 +805,20 @@ class DefaultErrorWebExceptionHandlerIntegrationTests {
 	}
 
 	@Configuration(proxyBeanMethods = false)
-	static class CustomErrorAttributesWithHtmlInTimestampAndRequestId {
+	static class CustomErrorAttributesWithEscaping {
 
 		@Bean
 		ErrorAttributes errorAttributes() {
 			return new DefaultErrorAttributes() {
 
 				@Override
-				public Map<String, Object> getErrorAttributes(ServerRequest request,
-						ErrorAttributeOptions options) {
-					Map<String, Object> attributes = new LinkedHashMap<>(
-							super.getErrorAttributes(request, options));
-					attributes.put("timestamp", "<script>alert('xss')</script>");
-					attributes.put("requestId", "<script>alert('xss')</script>");
+				public Map<String, Object> getErrorAttributes(ServerRequest request, ErrorAttributeOptions options) {
+					Map<String, Object> attributes = new LinkedHashMap<>(super.getErrorAttributes(request, options));
+					attributes.put("error", "<script>alert('xss-error')</script>");
+					attributes.put("message", "<script>alert('xss-message')</script>");
+					attributes.put("requestId", "<script>alert('xss-requestId')</script>");
+					attributes.put("timestamp", "<script>alert('xss-timestamp')</script>");
+					attributes.put("trace", "<script>alert('xss-trace')</script>");
 					return attributes;
 				}
 
