@@ -216,7 +216,7 @@ public final class ErrorMvcAutoConfiguration {
 			builder.append("<html><body><h1>Whitelabel Error Page</h1>")
 				.append("<p>This application has no explicit mapping for /error, so you are seeing this as a fallback.</p>")
 				.append("<div id='created'>")
-				.append(timestamp)
+				.append(htmlEscape(timestamp))
 				.append("</div>")
 				.append("<div>There was an unexpected error (type=")
 				.append(htmlEscape(model.get("error")))
