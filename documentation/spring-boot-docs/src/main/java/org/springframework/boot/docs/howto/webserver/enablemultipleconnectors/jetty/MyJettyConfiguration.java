@@ -14,27 +14,25 @@
  * limitations under the License.
  */
 
-package org.springframework.boot.docs.howto.webserver.enablemultipleconnectorsintomcat;
+package org.springframework.boot.docs.howto.webserver.enablemultipleconnectors.jetty;
 
-import org.apache.catalina.connector.Connector;
+import org.eclipse.jetty.server.ServerConnector;
 
-import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory;
+import org.springframework.boot.jetty.ConfigurableJettyWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-public class MyTomcatConfiguration {
+public class MyJettyConfiguration {
 
 	@Bean
-	public WebServerFactoryCustomizer<TomcatServletWebServerFactory> connectorCustomizer() {
-		return (tomcat) -> tomcat.addAdditionalConnectors(createConnector());
-	}
-
-	private Connector createConnector() {
-		Connector connector = new Connector("org.apache.coyote.http11.Http11NioProtocol");
-		connector.setPort(8081);
-		return connector;
+	public WebServerFactoryCustomizer<ConfigurableJettyWebServerFactory> connectorCustomizer() {
+		return (jetty) -> jetty.addServerCustomizers((server) -> {
+			ServerConnector connector = new ServerConnector(server);
+			connector.setPort(8081);
+			server.addConnector(connector);
+		});
 	}
 
 }
