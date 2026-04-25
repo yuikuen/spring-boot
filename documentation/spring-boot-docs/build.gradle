@@ -121,6 +121,7 @@ dependencies {
 	implementation(project(path: ":module:spring-boot-jackson"))
 	implementation(project(path: ":module:spring-boot-jdbc"))
 	implementation(project(path: ":module:spring-boot-jdbc-test"))
+	implementation(project(path: ":module:spring-boot-jetty"))
 	implementation(project(path: ":module:spring-boot-jooq-test"))
 	implementation(project(path: ":module:spring-boot-jpa"))
 	implementation(project(path: ":module:spring-boot-jms"))
