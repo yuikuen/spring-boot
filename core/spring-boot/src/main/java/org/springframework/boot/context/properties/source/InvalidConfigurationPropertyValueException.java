@@ -48,7 +48,18 @@ public class InvalidConfigurationPropertyValueException extends RuntimeException
 		this(name, value, reason, null);
 	}
 
-	InvalidConfigurationPropertyValueException(String name, @Nullable Object value, @Nullable String reason,
+	/**
+	 * Creates a new instance for the specified property {@code name} and {@code value},
+	 * including a {@code reason} why the value is invalid.
+	 * @param name the name of the property in canonical format
+	 * @param value the value of the property, can be {@code null}
+	 * @param reason a human-readable text that describes why the reason is invalid.
+	 * Starts with an upper-case and ends with a dot. Several sentences and carriage
+	 * returns are allowed.
+	 * @param cause the cause of the exception or {@code null}
+	 * @since 4.1.0
+	 */
+	public InvalidConfigurationPropertyValueException(String name, @Nullable Object value, @Nullable String reason,
 			@Nullable Throwable cause) {
 		super("Property " + name + " with value '" + value + "' is invalid: " + reason, cause);
 		Assert.notNull(name, "'name' must not be null");
