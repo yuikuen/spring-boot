@@ -2390,6 +2390,7 @@ bom {
 				"spring-boot-starter-validation",
 				"spring-boot-starter-validation-test",
 				"spring-boot-starter-web",
+				"spring-boot-starter-web-server-test",
 				"spring-boot-starter-web-services",
 				"spring-boot-starter-webclient",
 				"spring-boot-starter-webclient-test",
