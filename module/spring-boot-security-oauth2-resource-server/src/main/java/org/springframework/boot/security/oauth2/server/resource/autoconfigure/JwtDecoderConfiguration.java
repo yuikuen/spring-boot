@@ -125,7 +125,14 @@ class JwtDecoderConfiguration {
 	}
 
 	private void jwsAlgorithms(Set<SignatureAlgorithm> signatureAlgorithms) {
-		this.properties.getJwsAlgorithms().stream().map(SignatureAlgorithm::from).forEach(signatureAlgorithms::add);
+		for (String algorithm : this.properties.getJwsAlgorithms()) {
+			SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.from(algorithm);
+			if (signatureAlgorithm == null) {
+				throw new InvalidConfigurationPropertyValueException(
+						"spring.security.oauth2.resourceserver.jwt.jws-algorithms", algorithm, "Unknown algorithm");
+			}
+			signatureAlgorithms.add(signatureAlgorithm);
+		}
 	}
 
 	@Bean
