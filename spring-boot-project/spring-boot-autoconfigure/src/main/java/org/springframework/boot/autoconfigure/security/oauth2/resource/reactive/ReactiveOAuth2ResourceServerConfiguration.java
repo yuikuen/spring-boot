@@ -33,9 +33,9 @@ class ReactiveOAuth2ResourceServerConfiguration {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass({ BearerTokenAuthenticationToken.class, ReactiveJwtDecoder.class })
-	@Import({ ReactiveOAuth2ResourceServerJwkConfiguration.JwtConfiguration.class,
-			ReactiveOAuth2ResourceServerJwkConfiguration.JwtConverterConfiguration.class,
-			ReactiveOAuth2ResourceServerJwkConfiguration.WebSecurityConfiguration.class })
+	@Import({ ReactiveOAuth2ResourceServerJwtConfiguration.JwtConfiguration.class,
+			ReactiveOAuth2ResourceServerJwtConfiguration.JwtConverterConfiguration.class,
+			ReactiveOAuth2ResourceServerJwtConfiguration.WebSecurityConfiguration.class })
 	static class JwtConfiguration {
 
 	}
