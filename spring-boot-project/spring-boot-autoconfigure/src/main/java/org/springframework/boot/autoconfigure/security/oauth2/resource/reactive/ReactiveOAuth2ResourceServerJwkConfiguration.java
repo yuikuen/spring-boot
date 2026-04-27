@@ -34,6 +34,7 @@ import org.springframework.boot.autoconfigure.security.oauth2.resource.Condition
 import org.springframework.boot.autoconfigure.security.oauth2.resource.ConditionalOnPublicKeyJwtDecoder;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
+import org.springframework.boot.context.properties.source.InvalidConfigurationPropertyValueException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -54,7 +55,9 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtGrantedAuthoritiesConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 /**
  * Configures a {@link ReactiveJwtDecoder} when a JWK Set URI, OpenID Connect Issuer URI
@@ -103,7 +106,12 @@ class ReactiveOAuth2ResourceServerJwkConfiguration {
 
 		private void jwsAlgorithms(Set<SignatureAlgorithm> signatureAlgorithms) {
 			for (String algorithm : this.properties.getJwsAlgorithms()) {
-				signatureAlgorithms.add(SignatureAlgorithm.from(algorithm));
+				SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.from(algorithm);
+				if (signatureAlgorithm == null) {
+					throw new InvalidConfigurationPropertyValueException(
+							"spring.security.oauth2.resourceserver.jwt.jws-algorithms", algorithm, "Unknown algorithm");
+				}
+				signatureAlgorithms.add(signatureAlgorithm);
 			}
 		}
 
@@ -135,7 +143,7 @@ class ReactiveOAuth2ResourceServerJwkConfiguration {
 			RSAPublicKey publicKey = (RSAPublicKey) KeyFactory.getInstance("RSA")
 				.generatePublic(new X509EncodedKeySpec(getKeySpec(this.properties.readPublicKey())));
 			NimbusReactiveJwtDecoder jwtDecoder = NimbusReactiveJwtDecoder.withPublicKey(publicKey)
-				.signatureAlgorithm(SignatureAlgorithm.from(exactlyOneAlgorithm()))
+				.signatureAlgorithm(exactlyOneAlgorithm())
 				.build();
 			jwtDecoder.setJwtValidator(getValidators(JwtValidators.createDefault()));
 			return jwtDecoder;
@@ -146,15 +154,18 @@ class ReactiveOAuth2ResourceServerJwkConfiguration {
 			return Base64.getMimeDecoder().decode(keyValue);
 		}
 
-		private String exactlyOneAlgorithm() {
+		private SignatureAlgorithm exactlyOneAlgorithm() {
 			List<String> algorithms = this.properties.getJwsAlgorithms();
-			int count = (algorithms != null) ? algorithms.size() : 0;
-			if (count != 1) {
-				throw new IllegalStateException(
-						"Creating a JWT decoder using a public key requires exactly one JWS algorithm but " + count
-								+ " were configured");
+			Assert.state(algorithms != null && algorithms.size() == 1,
+					() -> "Creating a JWT decoder using a public key requires exactly one JWS algorithm but "
+							+ algorithms.size() + " were configured");
+			SignatureAlgorithm algorithm = SignatureAlgorithm.from(algorithms.get(0));
+			if (algorithm == null) {
+				throw new InvalidConfigurationPropertyValueException(
+						"spring.security.oauth2.resourceserver.jwt.jws-algorithms",
+						StringUtils.collectionToCommaDelimitedString(algorithms), "Unknown algorithm");
 			}
-			return algorithms.get(0);
+			return algorithm;
 		}
 
 		@Bean
