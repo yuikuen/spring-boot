@@ -75,7 +75,7 @@ import org.springframework.util.StringUtils;
  * @author Yan Kardziyaka
  */
 @Configuration(proxyBeanMethods = false)
-class ReactiveOAuth2ResourceServerJwkConfiguration {
+class ReactiveOAuth2ResourceServerJwtConfiguration {
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnMissingBean(ReactiveJwtDecoder.class)
