@@ -459,6 +459,6 @@ Filters may be applied to the javadoc:org.springframework.boot.http.client.HttpC
 
 include-code::MyService[]
 
-Or you can also define one as a javadoc:org.springframework.context.annotation.Bean[format=annotation] if you want to apply it to all auto-confugured HTTP client builders:
+Or you can also define one as a javadoc:org.springframework.context.annotation.Bean[format=annotation] if you want to apply it to all auto-configured HTTP client builders:
 
 include-code::MyHttpClientConfiguration[]
