@@ -54,7 +54,7 @@ class ThreadPoolTaskSchedulerBuilderTests {
 
 	@Test
 	void awaitTerminationPeriodShouldApply() {
-		Duration period = Duration.ofMinutes(1);
+		Duration period = Duration.ofMillis(50);
 		ThreadPoolTaskScheduler executor = this.builder.awaitTerminationPeriod(period).build();
 		assertThat(executor).hasFieldOrPropertyWithValue("awaitTerminationMillis", period.toMillis());
 	}
