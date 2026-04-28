@@ -212,7 +212,7 @@ public class ThreadPoolTaskSchedulerBuilder {
 		PropertyMapper map = PropertyMapper.get();
 		map.from(this.poolSize).to(taskScheduler::setPoolSize);
 		map.from(this.awaitTermination).to(taskScheduler::setWaitForTasksToCompleteOnShutdown);
-		map.from(this.awaitTerminationPeriod).asInt(Duration::getSeconds).to(taskScheduler::setAwaitTerminationSeconds);
+		map.from(this.awaitTerminationPeriod).as(Duration::toMillis).to(taskScheduler::setAwaitTerminationMillis);
 		map.from(this.threadNamePrefix).to(taskScheduler::setThreadNamePrefix);
 		map.from(this.taskDecorator).to(taskScheduler::setTaskDecorator);
 		if (!CollectionUtils.isEmpty(this.customizers)) {
