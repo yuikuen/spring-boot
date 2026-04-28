@@ -16,7 +16,6 @@
 
 package org.springframework.boot.json;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -76,9 +75,10 @@ public interface WritableJson {
 	 */
 	default byte[] toByteArray(Charset charset) {
 		Assert.notNull(charset, "'charset' must not be null");
-		try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-			toWriter(new OutputStreamWriter(out, charset));
-			return out.toByteArray();
+		try {
+			AppendableByteArray appendable = AppendableByteArray.get(charset);
+			to(appendable);
+			return appendable.toByteArray();
 		}
 		catch (IOException ex) {
 			throw new UncheckedIOException(ex);
