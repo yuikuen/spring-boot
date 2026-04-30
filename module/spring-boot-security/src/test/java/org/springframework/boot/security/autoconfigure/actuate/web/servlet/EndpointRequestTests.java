@@ -65,7 +65,7 @@ class EndpointRequestTests {
 		assertMatcher(matcher, "/actuator").matches("/actuator/foo/zoo/");
 		assertMatcher(matcher, "/actuator").matches("/actuator/bar");
 		assertMatcher(matcher, "/actuator").matches("/actuator/bar/baz");
-		assertMatcher(matcher, "/actuator").matches("/actuator");
+		assertMatcher(matcher, "/actuator").matches(HttpMethod.GET, "/actuator");
 	}
 
 	@Test
@@ -77,11 +77,21 @@ class EndpointRequestTests {
 	}
 
 	@Test
+	void toAnyEndpointWithHttpMethodShouldUseGetForLinks() {
+		EndpointRequest.EndpointRequestMatcher matcher = EndpointRequest.toAnyEndpoint()
+			.withHttpMethod(HttpMethod.POST);
+		assertMatcher(matcher, "/actuator").matches(HttpMethod.GET, "/actuator");
+		assertMatcher(matcher, "/actuator").doesNotMatch(HttpMethod.POST, "/actuator");
+		assertMatcher(matcher, "/actuator").matches(HttpMethod.GET, "/actuator/");
+		assertMatcher(matcher, "/actuator").doesNotMatch(HttpMethod.POST, "/actuator/");
+	}
+
+	@Test
 	void toAnyEndpointShouldMatchEndpointPathWithTrailingSlash() {
 		RequestMatcher matcher = EndpointRequest.toAnyEndpoint();
 		assertMatcher(matcher, "/actuator").matches("/actuator/foo/");
 		assertMatcher(matcher, "/actuator").matches("/actuator/bar/");
-		assertMatcher(matcher, "/actuator").matches("/actuator/");
+		assertMatcher(matcher, "/actuator").matches(HttpMethod.GET, "/actuator/");
 	}
 
 	@Test
@@ -98,7 +108,7 @@ class EndpointRequestTests {
 		RequestMatcher matcher = EndpointRequest.toAnyEndpoint();
 		RequestMatcherAssert assertMatcher = assertMatcher(matcher, mockPathMappedEndpoints(""), null,
 				WebServerNamespace.MANAGEMENT);
-		assertMatcher.matches("/");
+		assertMatcher.matches(HttpMethod.GET, "/");
 		assertMatcher.matches("/foo");
 	}
 
@@ -113,7 +123,7 @@ class EndpointRequestTests {
 		RequestMatcher matcher = EndpointRequest.toAnyEndpoint();
 		assertMatcher(matcher, "/actuator").matches("/actuator/foo");
 		assertMatcher(matcher, "/actuator").matches("/actuator/bar");
-		assertMatcher(matcher, "/actuator").matches("/actuator");
+		assertMatcher(matcher, "/actuator").matches(HttpMethod.GET, "/actuator");
 		assertMatcher(matcher, "/actuator").doesNotMatch("/actuator/baz");
 	}
 
@@ -148,8 +158,10 @@ class EndpointRequestTests {
 		RequestMatcher matcher = EndpointRequest.toLinks();
 		assertMatcher(matcher).doesNotMatch("/actuator/foo");
 		assertMatcher(matcher).doesNotMatch("/actuator/bar");
-		assertMatcher(matcher).matches("/actuator");
-		assertMatcher(matcher).matches("/actuator/");
+		assertMatcher(matcher).matches(HttpMethod.GET, "/actuator");
+		assertMatcher(matcher).doesNotMatch(HttpMethod.POST, "/actuator");
+		assertMatcher(matcher).matches(HttpMethod.GET, "/actuator/");
+		assertMatcher(matcher).doesNotMatch(HttpMethod.POST, "/actuator/");
 	}
 
 	@Test
@@ -166,7 +178,7 @@ class EndpointRequestTests {
 		RequestMatcher matcher = EndpointRequest.toLinks();
 		RequestMatcherAssert assertMatcher = assertMatcher(matcher, mockPathMappedEndpoints(""), null,
 				WebServerNamespace.MANAGEMENT);
-		assertMatcher.matches("/");
+		assertMatcher.matches(HttpMethod.GET, "/");
 		assertMatcher.doesNotMatch("/foo");
 	}
 
@@ -181,7 +193,7 @@ class EndpointRequestTests {
 		assertMatcher(matcher, pathMappedEndpoints).doesNotMatch("/actuator/foo");
 		assertMatcher(matcher, pathMappedEndpoints).doesNotMatch("/actuator/baz");
 		assertMatcher(matcher).matches("/actuator/bar");
-		assertMatcher(matcher).matches("/actuator");
+		assertMatcher(matcher).matches(HttpMethod.GET, "/actuator");
 	}
 
 	@Test
@@ -196,7 +208,7 @@ class EndpointRequestTests {
 		RequestMatcher matcher = EndpointRequest.toAnyEndpoint().excluding("foo");
 		assertMatcher(matcher).doesNotMatch("/actuator/foo");
 		assertMatcher(matcher).matches("/actuator/bar");
-		assertMatcher(matcher).matches("/actuator");
+		assertMatcher(matcher).matches(HttpMethod.GET, "/actuator");
 	}
 
 	@Test
