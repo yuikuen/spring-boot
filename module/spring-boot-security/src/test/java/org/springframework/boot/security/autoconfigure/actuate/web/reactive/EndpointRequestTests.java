@@ -78,6 +78,15 @@ class EndpointRequestTests {
 	}
 
 	@Test
+	void toAnyEndpointWithHttpMethodShouldUseGetForLinks() {
+		ServerWebExchangeMatcher matcher = EndpointRequest.toAnyEndpoint().withHttpMethod(HttpMethod.POST);
+		assertMatcher(matcher, "/actuator").matches(HttpMethod.GET, "/actuator");
+		assertMatcher(matcher, "/actuator").doesNotMatch(HttpMethod.POST, "/actuator");
+		assertMatcher(matcher, "/actuator").matches(HttpMethod.GET, "/actuator/");
+		assertMatcher(matcher, "/actuator").doesNotMatch(HttpMethod.POST, "/actuator/");
+	}
+
+	@Test
 	void toAnyEndpointShouldMatchEndpointPathWithTrailingSlash() {
 		ServerWebExchangeMatcher matcher = EndpointRequest.toAnyEndpoint();
 		assertMatcher(matcher).matches("/actuator/foo/");
@@ -142,8 +151,10 @@ class EndpointRequestTests {
 		ServerWebExchangeMatcher matcher = EndpointRequest.toLinks();
 		assertMatcher(matcher).doesNotMatch("/actuator/foo");
 		assertMatcher(matcher).doesNotMatch("/actuator/bar");
-		assertMatcher(matcher).matches("/actuator");
-		assertMatcher(matcher).matches("/actuator/");
+		assertMatcher(matcher).matches(HttpMethod.GET, "/actuator");
+		assertMatcher(matcher).doesNotMatch(HttpMethod.POST, "/actuator");
+		assertMatcher(matcher).matches(HttpMethod.GET, "/actuator/");
+		assertMatcher(matcher).doesNotMatch(HttpMethod.POST, "/actuator/");
 	}
 
 	@Test

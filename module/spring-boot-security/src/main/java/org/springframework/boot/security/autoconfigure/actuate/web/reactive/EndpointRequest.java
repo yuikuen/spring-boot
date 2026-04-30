@@ -325,6 +325,8 @@ public final class EndpointRequest {
 
 		/**
 		 * Restricts the matcher to only consider requests with a particular http method.
+		 * <p>
+		 * The links endpoint, if included, is always matched using {@code GET}.
 		 * @param httpMethod the http method to include
 		 * @return a copy of the matcher further restricted to only match requests with
 		 * the specified http method
@@ -382,9 +384,9 @@ public final class EndpointRequest {
 			String linksPath = getLinksPath(properties.getBasePath());
 			if (linksPath != null) {
 				List<ServerWebExchangeMatcher> linksMatchers = new ArrayList<>();
-				linksMatchers.add(new PathPatternParserServerWebExchangeMatcher(linksPath));
+				linksMatchers.add(new PathPatternParserServerWebExchangeMatcher(linksPath, HttpMethod.GET));
 				if (!linksPath.endsWith("/")) {
-					linksMatchers.add(new PathPatternParserServerWebExchangeMatcher(linksPath + "/"));
+					linksMatchers.add(new PathPatternParserServerWebExchangeMatcher(linksPath + "/", HttpMethod.GET));
 				}
 				return new OrServerWebExchangeMatcher(linksMatchers);
 			}

@@ -226,9 +226,9 @@ public final class EndpointRequest {
 		protected List<RequestMatcher> getLinksMatchers(RequestMatcherFactory requestMatcherFactory,
 				RequestMatcherProvider matcherProvider, String linksPath) {
 			List<RequestMatcher> linksMatchers = new ArrayList<>();
-			linksMatchers.add(requestMatcherFactory.antPath(matcherProvider, null, linksPath));
+			linksMatchers.add(requestMatcherFactory.antPath(matcherProvider, HttpMethod.GET, linksPath));
 			if (!linksPath.endsWith("/")) {
-				linksMatchers.add(requestMatcherFactory.antPath(matcherProvider, null, linksPath, "/"));
+				linksMatchers.add(requestMatcherFactory.antPath(matcherProvider, HttpMethod.GET, linksPath, "/"));
 			}
 			return linksMatchers;
 		}
@@ -333,6 +333,8 @@ public final class EndpointRequest {
 
 		/**
 		 * Restricts the matcher to only consider requests with a particular HTTP method.
+		 * <p>
+		 * The links endpoint, if included, is always matched using {@code GET}.
 		 * @param httpMethod the HTTP method to include
 		 * @return a copy of the matcher further restricted to only match requests with
 		 * the specified HTTP method
