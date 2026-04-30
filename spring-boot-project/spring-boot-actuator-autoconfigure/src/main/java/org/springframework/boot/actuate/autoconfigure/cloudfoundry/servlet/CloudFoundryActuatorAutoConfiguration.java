@@ -148,7 +148,7 @@ public class CloudFoundryActuatorAutoConfiguration {
 				? new CloudFoundrySecurityService(restTemplateBuilder, cloudControllerUrl, skipSslValidation) : null;
 	}
 
-	private CorsConfiguration getCorsConfiguration() {
+	private static CorsConfiguration getCorsConfiguration() {
 		CorsConfiguration corsConfiguration = new CorsConfiguration();
 		corsConfiguration.addAllowedOrigin(CorsConfiguration.ALL);
 		corsConfiguration.setAllowedMethods(Arrays.asList(HttpMethod.GET.name(), HttpMethod.POST.name()));
@@ -173,6 +173,8 @@ public class CloudFoundryActuatorAutoConfiguration {
 		SecurityFilterChain cloudFoundrySecurityFilterChain(HttpSecurity http) throws Exception {
 			RequestMatcher cloudFoundryRequest = getRequestMatcher();
 			http.csrf((csrf) -> csrf.ignoringRequestMatchers(cloudFoundryRequest));
+			CorsConfiguration corsConfiguration = getCorsConfiguration();
+			http.cors((cors) -> cors.configurationSource((request) -> corsConfiguration));
 			http.securityMatchers((matches) -> matches.requestMatchers(cloudFoundryRequest))
 				.authorizeHttpRequests((authorize) -> authorize.anyRequest().permitAll());
 			return http.build();
