@@ -2599,10 +2599,10 @@ bom {
 		links {
 			site("https://spring.io/projects/spring-grpc")
 			github("https://github.com/spring-projects/spring-grpc")
-			javadoc(version -> "https://docs.spring.io/spring-grpc/docs/%s/api"
-					.formatted(version.forMajorMinorGeneration()), "org.springframework.grpc")
+			javadoc(version -> "https://docs.spring.io/spring-grpc/reference/%s/api/java/"
+					.formatted(version.forAntora()), "org.springframework.grpc")
 			docs(version -> "https://docs.spring.io/spring-grpc/reference/%s"
-					.formatted(version.forMajorMinorGeneration()))
+					.formatted(version.forAntora()))
 			releaseNotes("https://github.com/spring-projects/spring-grpc/releases/tag/v{version}")
 		}
 	}
