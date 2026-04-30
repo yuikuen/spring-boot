@@ -50,6 +50,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.webmvc.autoconfigure.DispatcherServletAutoConfiguration;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.context.ApplicationContext;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -61,11 +62,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CompositeFilter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -208,6 +211,22 @@ class CloudFoundryActuatorAutoConfigurationTests {
 				mvc.perform(post(BASE_PATH + "/test?name=test").contentType(MediaType.APPLICATION_JSON)
 					.with(csrf().useInvalidToken())).andExpect(status().isServiceUnavailable());
 				// If CSRF fails we'll get a 403, if it works we get service unavailable
+				// because of "Cloud controller URL is not available"
+			});
+	}
+
+	@Test
+	void crossOriginRequestToCloudFoundryPathsPermittedBySpringSecurity() {
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", new CorsConfiguration());
+		this.contextRunner.withBean(TestEndpoint.class, TestEndpoint::new)
+			.withBean("corsConfigurationSource", UrlBasedCorsConfigurationSource.class, () -> source)
+			.withPropertyValues("VCAP_APPLICATION:---", "vcap.application.application_id:my-app-id")
+			.run((context) -> {
+				MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+				mvc.perform(get(BASE_PATH + "/test").header(HttpHeaders.ORIGIN, "elsewhere.example.com")
+					.contentType(MediaType.APPLICATION_JSON)).andExpect(status().isServiceUnavailable());
+				// If CORS fails we'll get a 403, if it works we get service unavailable
 				// because of "Cloud controller URL is not available"
 			});
 	}
