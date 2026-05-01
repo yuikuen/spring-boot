@@ -46,6 +46,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.vibur.dbcp.ViburDBCPDataSource;
 
 import org.springframework.jdbc.datasource.AbstractDataSource;
+import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
@@ -61,6 +62,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
  * @author Stephane Nicoll
  * @author Fabio Grassi
  * @author Phillip Webb
+ * @author Vedran Pavic
  */
 class DataSourceBuilderTests {
 
@@ -421,6 +423,19 @@ class DataSourceBuilderTests {
 		dataSource.setPassword("secret");
 		dataSource.setJdbcUrl("jdbc:h2:test");
 		DataSourceBuilder<?> builder = DataSourceBuilder.derivedFrom(wrap(wrap(dataSource)));
+		HikariDataSource built = (HikariDataSource) builder.username("test2").password("secret2").build();
+		assertThat(built.getUsername()).isEqualTo("test2");
+		assertThat(built.getPassword()).isEqualTo("secret2");
+		assertThat(built.getJdbcUrl()).isEqualTo("jdbc:h2:test");
+	}
+
+	@Test
+	void buildWhenDerivedFromLazyConnectionDataSourceProxy() {
+		HikariDataSource dataSource = new HikariDataSource();
+		dataSource.setUsername("test");
+		dataSource.setPassword("secret");
+		dataSource.setJdbcUrl("jdbc:h2:test");
+		DataSourceBuilder<?> builder = DataSourceBuilder.derivedFrom(new LazyConnectionDataSourceProxy(dataSource));
 		HikariDataSource built = (HikariDataSource) builder.username("test2").password("secret2").build();
 		assertThat(built.getUsername()).isEqualTo("test2");
 		assertThat(built.getPassword()).isEqualTo("secret2");

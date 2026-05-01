@@ -51,6 +51,7 @@ import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jdbc.DataSourceBuilder;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.EmbeddedDataSourceConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.JdbcConnectionDetails;
 import org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration;
@@ -90,6 +91,7 @@ import static org.assertj.core.api.Assertions.contentOf;
  * @author Moritz Halbritter
  * @author Phillip Webb
  * @author Ahmed Ashour
+ * @author Vedran Pavic
  */
 @ExtendWith(OutputCaptureExtension.class)
 class LiquibaseAutoConfigurationTests {
@@ -369,6 +371,20 @@ class LiquibaseAutoConfigurationTests {
 			.run(assertLiquibase((liquibase) -> {
 				SimpleDriverDataSource dataSource = (SimpleDriverDataSource) liquibase.getDataSource();
 				assertThat(dataSource.getUrl()).contains("jdbc:h2:mem:" + databaseName);
+				assertThat(dataSource.getUsername()).isEqualTo("sa");
+			}));
+	}
+
+	@Test
+	@WithDbChangelogMasterYamlResource
+	void lazyConnectionDataSource() {
+		String jdbcUrl = "jdbc:h2:mem:liquibase-" + UUID.randomUUID();
+		this.contextRunner.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class))
+			.withPropertyValues("spring.datasource.url:" + jdbcUrl, "spring.datasource.username:not-sa",
+					"spring.datasource.connection-fetch:lazy", "spring.liquibase.user:sa")
+			.run(assertLiquibase((liquibase) -> {
+				SimpleDriverDataSource dataSource = (SimpleDriverDataSource) liquibase.getDataSource();
+				assertThat(dataSource.getUrl()).isEqualTo(jdbcUrl);
 				assertThat(dataSource.getUsername()).isEqualTo("sa");
 			}));
 	}
