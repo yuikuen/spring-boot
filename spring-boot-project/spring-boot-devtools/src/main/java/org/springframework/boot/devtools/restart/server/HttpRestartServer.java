@@ -17,12 +17,17 @@
 package org.springframework.boot.devtools.restart.server;
 
 import java.io.IOException;
+import java.io.ObjectInputFilter;
 import java.io.ObjectInputStream;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.springframework.boot.devtools.restart.classloader.ClassLoaderFile;
 import org.springframework.boot.devtools.restart.classloader.ClassLoaderFiles;
+import org.springframework.boot.devtools.restart.classloader.ClassLoaderFiles.SourceDirectory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -39,6 +44,8 @@ import org.springframework.util.Assert;
 public class HttpRestartServer {
 
 	private static final Log logger = LogFactory.getLog(HttpRestartServer.class);
+
+	private final ObjectInputFilter inputFilter = new ClassLoaderFilesObjectInputFilter();
 
 	private final RestartServer server;
 
@@ -71,15 +78,38 @@ public class HttpRestartServer {
 		try {
 			Assert.state(request.getHeaders().getContentLength() > 0, "No content");
 			ObjectInputStream objectInputStream = new ObjectInputStream(request.getBody());
+			objectInputStream.setObjectInputFilter(this.inputFilter);
 			ClassLoaderFiles files = (ClassLoaderFiles) objectInputStream.readObject();
 			objectInputStream.close();
 			this.server.updateAndRestart(files);
 			response.setStatusCode(HttpStatus.OK);
 		}
 		catch (Exception ex) {
-			logger.warn("Unable to handler restart server HTTP request", ex);
+			logger.warn("Unable to handle restart server HTTP request", ex);
 			response.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
 		}
+	}
+
+	private static final class ClassLoaderFilesObjectInputFilter implements ObjectInputFilter {
+
+		private static final Set<Class<?>> PERMITTED_CLASSES = Set.of(ClassLoaderFiles.class, ClassLoaderFile.class,
+				ClassLoaderFile.Kind.class, SourceDirectory.class, java.lang.Enum.class, Map.Entry.class, byte.class);
+
+		@Override
+		public Status checkInput(FilterInfo filterInfo) {
+			Class<?> serialClass = filterInfo.serialClass();
+			if (serialClass == null) {
+				return Status.UNDECIDED;
+			}
+			while (serialClass.isArray()) {
+				serialClass = serialClass.componentType();
+			}
+			if (PERMITTED_CLASSES.contains(serialClass) || Map.class.isAssignableFrom(serialClass)) {
+				return Status.ALLOWED;
+			}
+			return Status.REJECTED;
+		}
+
 	}
 
 }
