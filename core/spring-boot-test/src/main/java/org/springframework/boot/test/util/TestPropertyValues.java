@@ -100,7 +100,7 @@ public final class TestPropertyValues {
 	 * @since 2.4.0
 	 */
 	public TestPropertyValues and(@Nullable Map<String, String> map) {
-		return (map != null) ? and(map.entrySet().stream(), Pair::fromMapEntry) : this;
+		return (map != null) ? and(map.entrySet().stream(), Pair::fromNonNullValueMapEntry) : this;
 	}
 
 	/**
@@ -257,7 +257,7 @@ public final class TestPropertyValues {
 	 * @return the new instance
 	 */
 	public static TestPropertyValues of(@Nullable Map<String, String> map) {
-		return (map != null) ? of(map.entrySet().stream(), Pair::fromMapEntry) : empty();
+		return (map != null) ? of(map.entrySet().stream(), Pair::fromNonNullValueMapEntry) : empty();
 	}
 
 	/**
@@ -360,6 +360,10 @@ public final class TestPropertyValues {
 		 * @since 2.4.0
 		 */
 		public static Pair fromMapEntry(Map.Entry<String, @Nullable String> entry) {
+			return of(entry.getKey(), entry.getValue());
+		}
+
+		private static Pair fromNonNullValueMapEntry(Map.Entry<String, String> entry) {
 			return of(entry.getKey(), entry.getValue());
 		}
 
