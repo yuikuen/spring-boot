@@ -19,18 +19,22 @@ package org.springframework.boot.grpc.server.autoconfigure.health;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.ScheduledFuture;
 
 import io.grpc.protobuf.services.HealthStatusManager;
+import jakarta.servlet.ServletContext;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.springframework.boot.grpc.server.GrpcServletRegistration;
 import org.springframework.boot.grpc.server.health.GrpcServerHealth;
-import org.springframework.context.ApplicationListener;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.log.LogMessage;
 import org.springframework.grpc.server.lifecycle.GrpcServerStartedEvent;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.util.ClassUtils;
+import org.springframework.util.ObjectUtils;
 import org.springframework.util.function.SingletonSupplier;
+import org.springframework.web.context.WebApplicationContext;
 
 /**
  * Schedules gRPC health updates once the gRPC server has been started.
@@ -38,32 +42,78 @@ import org.springframework.util.function.SingletonSupplier;
  * @author Phillip Webb
  * @author Chris Bono
  */
-class GrpcServerHealthScheduler implements ApplicationListener<GrpcServerStartedEvent> {
+class GrpcServerHealthScheduler {
 
 	private static final Log logger = LogFactory.getLog(GrpcServerHealthScheduler.class);
 
-	private final SingletonSupplier<ScheduledFuture<?>> scheduleHealth;
-
-	GrpcServerHealthScheduler(GrpcServerHealth grpcServerHealth, HealthStatusManager grpcServerHealthStatusManager,
-			TaskScheduler taskScheduler, Duration period, Duration delay) {
-		this(Clock.systemDefaultZone(), grpcServerHealth, grpcServerHealthStatusManager, taskScheduler, period, delay);
-	}
-
-	GrpcServerHealthScheduler(Clock clock, GrpcServerHealth grpcServerHealth,
+	GrpcServerHealthScheduler(ConfigurableApplicationContext applicationContext, GrpcServerHealth grpcServerHealth,
 			HealthStatusManager grpcServerHealthStatusManager, TaskScheduler taskScheduler, Duration period,
 			Duration delay) {
-		this.scheduleHealth = SingletonSupplier.of(() -> {
+		this(applicationContext, grpcServerHealth, grpcServerHealthStatusManager, taskScheduler, period, delay,
+				Clock.systemDefaultZone());
+	}
+
+	GrpcServerHealthScheduler(ConfigurableApplicationContext applicationContext, GrpcServerHealth grpcServerHealth,
+			HealthStatusManager grpcServerHealthStatusManager, TaskScheduler taskScheduler, Duration period,
+			Duration delay, Clock clock) {
+		SingletonSupplier<?> scheduleHealth = SingletonSupplier.of(() -> {
 			logger.debug(LogMessage
 				.of(() -> "Scheduling gRPC server health updates every %s seconds (after a delay of %s seconds)"
 					.formatted((period.toMillis() / 1000.0), delay.toMillis() / 1000.0)));
 			Runnable task = () -> grpcServerHealth.update(grpcServerHealthStatusManager);
 			return taskScheduler.scheduleAtFixedRate(task, Instant.now(clock).plus(delay), period);
 		});
+		if (ClassUtils.isPresent("jakarta.servlet.Servlet", null)
+				&& ClassUtils.isPresent("org.springframework.web.context.WebApplicationContext", null)) {
+			ServletTrigger.apply(applicationContext, scheduleHealth);
+		}
+		GrpcServerTrigger.apply(applicationContext, scheduleHealth);
 	}
 
-	@Override
-	public void onApplicationEvent(GrpcServerStartedEvent event) {
-		this.scheduleHealth.get();
+	/**
+	 * Trigger for servlet environments.
+	 */
+	static class ServletTrigger {
+
+		static void apply(ConfigurableApplicationContext applicationContext, SingletonSupplier<?> scheduleHealth) {
+			if (hasGrpcServletRegistration(applicationContext)) {
+				scheduleHealth.get();
+				return;
+			}
+		}
+
+		private static boolean hasGrpcServletRegistration(ConfigurableApplicationContext applicationContext) {
+			if (!ObjectUtils.isEmpty(applicationContext.getBeanNamesForType(GrpcServletRegistration.class))) {
+				return true;
+			}
+			if (applicationContext instanceof WebApplicationContext webApplicationContext) {
+				ServletContext servletContext = webApplicationContext.getServletContext();
+				if (servletContext != null && servletContext.getServletRegistrations()
+					.values()
+					.stream()
+					.anyMatch((servletRegistration) -> "io.grpc.servlet.jakarta.GrpcServlet"
+						.equals(servletRegistration.getClassName()))) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+	}
+
+	/**
+	 * Trigger for regular gRPC servers.
+	 */
+	static class GrpcServerTrigger {
+
+		static void apply(ConfigurableApplicationContext applicationContext, SingletonSupplier<?> scheduleHealth) {
+			applicationContext.addApplicationListener((event) -> {
+				if (event instanceof GrpcServerStartedEvent) {
+					scheduleHealth.get();
+				}
+			});
+		}
+
 	}
 
 }

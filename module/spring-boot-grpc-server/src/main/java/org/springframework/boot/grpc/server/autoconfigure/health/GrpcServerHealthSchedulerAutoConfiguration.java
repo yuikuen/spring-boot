@@ -27,6 +27,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.task.DefaultTaskSchedulerConfiguration;
 import org.springframework.boot.grpc.server.autoconfigure.health.GrpcServerHealthProperties.Schedule;
 import org.springframework.boot.grpc.server.health.GrpcServerHealth;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.grpc.server.GrpcServerFactory;
@@ -47,12 +48,12 @@ public final class GrpcServerHealthSchedulerAutoConfiguration {
 
 	@Bean
 	@ConditionalOnBean({ TaskScheduler.class, GrpcServerHealth.class })
-	GrpcServerHealthScheduler grpcServerHealthScheduler(GrpcServerHealth grpcServerHealth,
-			HealthStatusManager grpcServerHealthStatusManager, TaskScheduler taskScheduler,
-			GrpcServerHealthProperties properties) {
+	GrpcServerHealthScheduler grpcServerHealthScheduler(ConfigurableApplicationContext applicationContext,
+			GrpcServerHealth grpcServerHealth, HealthStatusManager grpcServerHealthStatusManager,
+			TaskScheduler taskScheduler, GrpcServerHealthProperties properties) {
 		Schedule schedule = properties.getSchedule();
-		return new GrpcServerHealthScheduler(grpcServerHealth, grpcServerHealthStatusManager, taskScheduler,
-				schedule.getPeriod(), schedule.getDelay());
+		return new GrpcServerHealthScheduler(applicationContext, grpcServerHealth, grpcServerHealthStatusManager,
+				taskScheduler, schedule.getPeriod(), schedule.getDelay());
 	}
 
 }
