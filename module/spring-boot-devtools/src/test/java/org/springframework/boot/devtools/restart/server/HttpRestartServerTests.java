@@ -18,7 +18,9 @@ package org.springframework.boot.devtools.restart.server;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InvalidClassException;
 import java.io.ObjectOutputStream;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.devtools.restart.classloader.ClassLoaderFile;
 import org.springframework.boot.devtools.restart.classloader.ClassLoaderFile.Kind;
 import org.springframework.boot.devtools.restart.classloader.ClassLoaderFiles;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.http.server.ServletServerHttpResponse;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -105,6 +109,20 @@ class HttpRestartServerTests {
 		this.server.handle(new ServletServerHttpRequest(request), new ServletServerHttpResponse(response));
 		then(this.delegate).shouldHaveNoInteractions();
 		assertThat(response.getStatus()).isEqualTo(500);
+	}
+
+	@Test
+	@ExtendWith(OutputCaptureExtension.class)
+	void sendBadSerializedData(CapturedOutput output) throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		byte[] bytes = serialize(List.of("not", "allowed"));
+		request.setContent(bytes);
+		this.server.handle(new ServletServerHttpRequest(request), new ServletServerHttpResponse(response));
+		then(this.delegate).shouldHaveNoInteractions();
+		assertThat(response.getStatus()).isEqualTo(500);
+		assertThat(output).contains(InvalidClassException.class.getName())
+			.doesNotContain(ClassCastException.class.getName());
 	}
 
 	private byte[] serialize(Object object) throws IOException {
