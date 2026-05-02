@@ -68,7 +68,7 @@ public class RepositoryTransformersExtension {
 				if (repository.getName().startsWith("spring-commercial-")) {
 					String host = repository.getUrl().getHost();
 					hostCredentials.put(host,
-							new MavenCredential("${env.COMMERCIAL_REPO_USERNAME}", "${env.COMMERCIAL_REPO_PASSWORD"));
+							new MavenCredential("${env.COMMERCIAL_REPO_USERNAME}", "${env.COMMERCIAL_REPO_PASSWORD}"));
 				}
 			});
 			return transform(line, hostCredentials.entrySet(), (entry,
