@@ -59,7 +59,7 @@ do as they were designed before this was clarified.
 | https://camunda.org/[Camunda BPM]
 | https://github.com/camunda/camunda-bpm-spring-boot-starter
 
-| https://apereo.github.io/cas/[Java CAS Client]
+| https://apereo.github.io/cas/[CAS Client]
 | https://github.com/apereo/java-cas-client/tree/master/cas-client-support-springboot
 
 | https://casdoor.org/[Casdoor]
