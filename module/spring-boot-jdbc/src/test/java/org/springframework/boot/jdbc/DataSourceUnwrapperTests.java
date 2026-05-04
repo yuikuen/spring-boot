@@ -107,6 +107,40 @@ class DataSourceUnwrapperTests {
 	}
 
 	@Test
+	void unwrapRootWithPlainDataSource() {
+		DataSource dataSource = new HikariDataSource();
+		assertThat(DataSourceUnwrapper.unwrapRoot(dataSource)).isSameAs(dataSource);
+	}
+
+	@Test
+	void unwrapRootWithDelegate() {
+		DataSource dataSource = new HikariDataSource();
+		DataSource actual = wrapInDelegate(wrapInDelegate(dataSource));
+		assertThat(DataSourceUnwrapper.unwrapRoot(actual)).isSameAs(dataSource);
+	}
+
+	@Test
+	void unwrapRootWithProxy() {
+		DataSource dataSource = new HikariDataSource();
+		DataSource actual = wrapInProxy(wrapInProxy(dataSource));
+		assertThat(DataSourceUnwrapper.unwrapRoot(actual)).isSameAs(dataSource);
+	}
+
+	@Test
+	void unwrapRootWithLazyConnectionDataSource() {
+		DataSource dataSource = new HikariDataSource();
+		DataSource actual = new LazyConnectionDataSourceProxy(dataSource);
+		assertThat(DataSourceUnwrapper.unwrapRoot(actual)).isSameAs(dataSource);
+	}
+
+	@Test
+	void unwrapRootWithSeveralLevelOfWrapping() {
+		DataSource dataSource = new HikariDataSource();
+		DataSource actual = wrapInProxy(wrapInDelegate(wrapInDelegate(wrapInProxy(wrapInDelegate(dataSource)))));
+		assertThat(DataSourceUnwrapper.unwrapRoot(actual)).isSameAs(dataSource);
+	}
+
+	@Test
 	void unwrappingIsNotAttemptedWhenTargetIsNotAnInterface() {
 		DataSource dataSource = mock(DataSource.class);
 		assertThat(DataSourceUnwrapper.unwrap(dataSource, HikariDataSource.class)).isNull();
