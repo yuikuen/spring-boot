@@ -41,7 +41,6 @@ import org.vibur.dbcp.ViburDBCPDataSource;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.core.ResolvableType;
-import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.springframework.lang.Contract;
 import org.springframework.util.Assert;
@@ -238,27 +237,7 @@ public final class DataSourceBuilder<T extends DataSource> {
 	 * @return a new {@link DataSource} builder
 	 */
 	public static DataSourceBuilder<?> derivedFrom(DataSource dataSource) {
-		return new DataSourceBuilder<>(unwrap(dataSource));
-	}
-
-	private static DataSource unwrap(DataSource dataSource) {
-		if ((dataSource instanceof LazyConnectionDataSourceProxy dataSourceProxy)
-				&& (dataSourceProxy.getTargetDataSource() != null)) {
-			dataSource = dataSourceProxy.getTargetDataSource();
-		}
-		try {
-			while (dataSource.isWrapperFor(DataSource.class)) {
-				DataSource unwrapped = dataSource.unwrap(DataSource.class);
-				if (unwrapped == dataSource) {
-					return unwrapped;
-				}
-				dataSource = unwrapped;
-			}
-		}
-		catch (SQLException ex) {
-			// Try to continue with the existing, potentially still wrapped, DataSource
-		}
-		return dataSource;
+		return new DataSourceBuilder<>(DataSourceUnwrapper.unwrapRoot(dataSource));
 	}
 
 	/**
